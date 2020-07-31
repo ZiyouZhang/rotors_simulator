@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(mav_datmo_gazebo)
+project(rotors_datmo)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -42,7 +42,7 @@ CATKIN_PACKAGE(
     image_transport
     cv_bridge
   LIBRARIES
-    mav_datmo_gazebo
+    rotors_datmo
 )
 
 # Gazebo plugins
@@ -152,7 +152,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   INCLUDE_DIRS include
-#  LIBRARIES mav_datmo_gazebo
+#  LIBRARIES rotors_datmo
 #  CATKIN_DEPENDS roscpp std_msgs
 #  DEPENDS system_lib
 )
@@ -170,7 +170,7 @@ include_directories(
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/mav_datmo_gazebo.cpp
+#   src/${PROJECT_NAME}/rotors_datmo.cpp
 # )
 
 ## Declare a C++ executable
@@ -248,7 +248,7 @@ catkin_install_python(PROGRAMS
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_mav_datmo_gazebo.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_rotors_datmo.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

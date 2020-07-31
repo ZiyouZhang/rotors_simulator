@@ -1,0 +1,19 @@
+<launch>
+  <!-- Settings -->
+  <env name="GAZEBO_MODEL_PATH" value="$(find rotors_datmo)/models:$(optenv GAZEBO_MODEL_PATH)" />
+  <env name="GAZEBO_RESOURCE_PATH" value="$(find rotors_datmo)/worlds:$(optenv GAZEBO_RESOURCE_PATH)" />
+
+  <!-- Gazebo -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find rotors_datmo)/worlds/apriltag_sim.world" />
+    <arg name="use_sim_time" value="true" />
+    <arg name="verbose" value="true" />
+    <arg name="headless" value="false" />
+    <arg name="debug" value="true" />
+    <arg name="paused" value="false" />
+    <arg name="gui" value="true" />
+  </include>
+
+  <!-- <node type="rviz" name="rviz" pkg="rviz" args="-d $(find rotors_datmo)/rviz/april_tag_detection.rviz" /> -->
+  <node type="apriltag_detection_node" name="apriltag_detection" pkg="rotors_datmo" />
+</launch>
