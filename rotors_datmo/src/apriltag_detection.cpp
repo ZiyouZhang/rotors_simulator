@@ -37,7 +37,7 @@ public:
         : it(nh)
     {
         // Subscrive to input video feed and publish output video feed
-        imageSub = it.subscribeCamera("/depth_camera/image_raw", 1, &PoseDetector::imageCallBack, this);
+        imageSub = it.subscribeCamera("/firefly/camera_nadir/image_raw", 1, &PoseDetector::imageCallBack, this);
         imagePub = it.advertise("/image_converter/output_video", 1);
         posePub = nh.advertise<geometry_msgs::Pose>("/tag_pose", 1);
 
@@ -47,15 +47,15 @@ public:
         tf = tag36h11_create();
         apriltag_detector_add_family(td, tf);
 
-        info.tagsize = 0.5;
-        info.fx = 1.047;
-        info.fy = 1.047;
-        info.cx = 0;
-        info.cy = 0;
+        info.tagsize = 0.5 * 8 * 8 / 10 /10;
+        info.fx = 554.3827128226441;
+        info.fy = 554.3827128226441;
+        info.cx = 320.5;
+        info.cy = 240.5;
 
-        T_WC << 1, 0, 0, -2,
+        T_WC << 1, 0, 0, 0,
                 0, 1, 0, 0,
-                0, 0, 1, 1,
+                0, 0, 1, 0,
                 0, 0, 0, 1;
     }
 
@@ -135,19 +135,23 @@ public:
             geometry_msgs::Pose currentPose;
             tf::Quaternion qt;
 
-            currentPose.position.x = T_WT(0, 3);
-            currentPose.position.y = T_WT(1, 3);
-            currentPose.position.z = T_WT(2, 3);
+            // currentPose.position.x = T_WT(0, 3);
+            // currentPose.position.y = T_WT(1, 3);
+            // currentPose.position.z = T_WT(2, 3);
 
-            tf::Matrix3x3 rotationMatrix(T_WT(0, 0), T_WT(0, 1), T_WT(0, 2),
-                                         T_WT(1, 0), T_WT(1, 1), T_WT(1, 2),
-                                         T_WT(2, 0), T_WT(2, 1), T_WT(2, 2));
+            currentPose.position.x = pose.t->data[0];
+            currentPose.position.y = pose.t->data[1];
+            currentPose.position.z = pose.t->data[2];
 
-            rotationMatrix.getRotation(qt);
-            tf::quaternionTFToMsg(qt, currentPose.orientation);
+            // tf::Matrix3x3 rotationMatrix(T_WT(0, 0), T_WT(0, 1), T_WT(0, 2),
+            //                              T_WT(1, 0), T_WT(1, 1), T_WT(1, 2),
+            //                              T_WT(2, 0), T_WT(2, 1), T_WT(2, 2));
 
-            // transformStuff
-            tf::StampedTransform transform;
+            // rotationMatrix.getRotation(qt);
+            // tf::quaternionTFToMsg(qt, currentPose.orientation);
+
+            // // transformStuff
+            // tf::StampedTransform transform;
 
             // debug the position info
             // std::cout << currentPose.position.x << " "

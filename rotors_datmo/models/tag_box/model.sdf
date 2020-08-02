@@ -1,35 +1,12 @@
 <?xml version="1.0" ?>
 <sdf version="1.5">
   <model name="tag_box">
-    <static>true</static>
-    <link name="tag">
-      <!-- <pose>0 0 0.25 0 0 0</pose> -->
-      <!-- <collision name="collision">
-        <geometry>
-          <box>
-            <size> 1 0.5 0.5</size>
-          </box>
-        </geometry>
-      </collision> -->
-      <visual name="visual">
-        <cast_shadows>false</cast_shadows>
-        <geometry>
-          <box>
-            <size> 0.001 0.5 0.5</size>
-          </box>
-        </geometry>
-        <material>
-          <emissive>1 1 1 1</emissive>
-          <script>
-            <uri>model://tag_box/materials/scripts</uri>
-            <uri>model://tag_box/materials/textures</uri>
-            <name>TagBox</name>
-          </script>
-        </material>
-      </visual>
-    </link>
+    <include>
+      <uri>model://tag</uri>
+      <pose>-0.25 0 0 0 0 0</pose>
+    </include>  
     <link name="box">
-      <!-- <pose>0.25 0 0.25 0 0 0</pose> -->
+      <pose>0 0 0 0 0 0</pose>
       <collision name="collision">
         <geometry>
           <box>
@@ -50,9 +27,9 @@
       </visual>
     </link>
     <joint name="joint" type="fixed">
-      <pose></pose>
-      <parent link="box"/>
-      <child link="tag"/>
+      <pose>0 0 0 0 0 0 0</pose>
+      <parent>box</parent>
+      <child>tag::link</child>
     </joint>
     <plugin name="tag_box_motion" filename="libtag_box_plugin.so"></plugin>
   </model>

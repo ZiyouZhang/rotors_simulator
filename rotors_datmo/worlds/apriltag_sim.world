@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <sdf version="1.6">
   <world name="default">
+
     <!-- GUI -->
     <gui>
       <camera name="gui_camera">
@@ -8,7 +9,11 @@
       </camera>
     </gui>
 
-    <!-- <spherical_coordinates>
+    <!-- Only one ROS interface plugin is required per world, as any other plugin can connect a Gazebo
+         topic to a ROS topic (or vise versa). -->
+    <plugin name="ros_interface_plugin" filename="librotors_gazebo_ros_interface_plugin.so"/>
+
+    <spherical_coordinates>
       <surface_model>EARTH_WGS84</surface_model>
       <latitude_deg>47.3667</latitude_deg>
       <longitude_deg>8.5500</longitude_deg>
@@ -33,7 +38,7 @@
       <real_time_factor>1</real_time_factor>
       <real_time_update_rate>100</real_time_update_rate>
       <gravity>0 0 -9.8</gravity>
-    </physics> -->
+    </physics>
 
     <!-- Lighting -->
     <include>
@@ -50,25 +55,26 @@
       <uri>model://walls</uri>
     </include>
 
-    <!-- Tag -->
+    <!-- Tag Box -->
     <include>
       <uri>model://tag_box</uri>
-      <pose>0.0 -0.5 1.0 0.0 0.0 0.0</pose>
+      <pose>2.0 -0.5 1.0 0.0 0.0 0.0</pose>
       <static>false</static>
     </include>
 
     <!-- Cylinder -->
     <include>
       <uri>model://cylinder</uri>
-      <pose>0.0 0.5 0.0 0.0 0.0 0.0</pose>
+      <pose>2.0 0.5 0.0 0.0 0.0 0.0</pose>
       <static>true</static>
     </include>
 
     <!-- Depth Camera -->
     <include>
-      <uri>model://tag_depth_camera</uri>
-      <pose>-2.0 0.0 1.0 0.0 0.0 0.0</pose>
+      <uri>model://depth_camera</uri>
+      <pose>1.0 1.0 1.0 0.0 0.0 0.0</pose>
       <static>true</static>
     </include>
+
   </world>
 </sdf>

@@ -15,7 +15,7 @@
 namespace gazebo
 {
 
-  struct ApriltagDepthPlugin : public SensorPlugin
+  struct DepthPlugin : public SensorPlugin
   {
     // Gazebo
     sdf::ElementPtr sdf_;
@@ -35,8 +35,8 @@ namespace gazebo
     image_transport::Publisher depth_pub_;
     image_transport::Publisher rgb_pub_;
 
-    ApriltagDepthPlugin() {}
-    ~ApriltagDepthPlugin()
+    DepthPlugin() {}
+    ~DepthPlugin()
     {
       delete ros_nh_;
       delete img_transport_;
@@ -50,23 +50,23 @@ namespace gazebo
       sensor_ = std::dynamic_pointer_cast<sensors::DepthCameraSensor>(sptr);
       if (!sensor_)
       {
-        gzerr << "ApriltagDepthPlugin requires a DepthSensor.\n";
+        gzerr << "DepthPlugin requires a DepthSensor.\n";
       }
 
       // Load depth camera
       depth_camera_ = sensor_->DepthCamera();
       if (!depth_camera_)
       {
-        gzerr << "ApriltagDepthPlugin not attached to a camera sensor!\n";
+        gzerr << "DepthPlugin not attached to a camera sensor!\n";
         return;
       }
 
       // Register depth callback
-      auto depth_cb = std::bind(&ApriltagDepthPlugin::depth_update, this);
+      auto depth_cb = std::bind(&DepthPlugin::depth_update, this);
       depth_conn_ = depth_camera_->ConnectNewDepthFrame(depth_cb);
 
       // Register rgb callback
-      auto rgb_cb = std::bind(&ApriltagDepthPlugin::rgb_update,
+      auto rgb_cb = std::bind(&DepthPlugin::rgb_update,
                               this,
                               std::placeholders::_1,
                               std::placeholders::_2,
@@ -76,7 +76,7 @@ namespace gazebo
       rgb_conn_ = depth_camera_->ConnectNewImageFrame(rgb_cb);
 
       // Create ROS thread
-      ros_thread_ = std::thread(&ApriltagDepthPlugin::ros_thread, this);
+      ros_thread_ = std::thread(&DepthPlugin::ros_thread, this);
     }
 
     void ros_thread()
@@ -166,5 +166,5 @@ namespace gazebo
     }
   };
 
-  GZ_REGISTER_SENSOR_PLUGIN(ApriltagDepthPlugin)
+  GZ_REGISTER_SENSOR_PLUGIN(DepthPlugin)
 } // namespace gazebo
