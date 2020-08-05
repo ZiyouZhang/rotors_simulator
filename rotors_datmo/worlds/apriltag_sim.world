@@ -65,7 +65,7 @@
     <!-- Cylinder -->
     <include>
       <uri>model://cylinder</uri>
-      <pose>2.0 0.5 0.0 0.0 0.0 0.0</pose>
+      <pose>2.0 -2.5 0.0 0.0 0.0 0.0</pose>
       <static>true</static>
     </include>
 

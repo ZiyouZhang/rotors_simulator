@@ -31,6 +31,7 @@ private:
 
     tf::TransformBroadcaster br;
     tf::Transform transform;
+    tf::Quaternion quaternion;
 
     // tf::TransformListener listener;
 

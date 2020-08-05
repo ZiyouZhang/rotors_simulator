@@ -37,13 +37,13 @@ namespace gazebo
         // Broadcast tf
         tf::Transform transform;
         transform.setOrigin(tf::Vector3(model->WorldPose().Pos().X(),
-            model->WorldPose().Pos().Y(),
-            model->WorldPose().Pos().Z()));
-        tf::Quaternion q;
-        q.setRPY(model->WorldPose().Rot().Roll(),
-            model->WorldPose().Rot().Pitch(),
-            model->WorldPose().Rot().Yaw());
-        transform.setRotation(q);
+                                        model->WorldPose().Pos().Y(),
+                                        model->WorldPose().Pos().Z()));
+        tf::Quaternion quaternion;
+        quaternion.setRPY(model->WorldPose().Rot().Roll(),
+                          model->WorldPose().Rot().Pitch(),
+                          model->WorldPose().Rot().Yaw());
+        transform.setRotation(quaternion);
 
         br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", model->GetName()));
     }

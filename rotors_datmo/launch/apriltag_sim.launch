@@ -41,6 +41,6 @@
   </include>
 
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find rotors_datmo)/rviz/april_tag_detection.rviz" />
-  <!-- <node type="apriltag_detection_node" name="apriltag_detection" pkg="rotors_datmo" /> -->
+  <node type="apriltag_detection_node" name="apriltag_detection" pkg="rotors_datmo" />
 
 </launch>

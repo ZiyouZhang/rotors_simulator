@@ -58,9 +58,6 @@ TARGET_LINK_LIBRARIES(apriltag_depth_plugin ${DEPS})
 ADD_LIBRARY(apriltag_pose_plugin SHARED src/pose_plugin.cpp)
 TARGET_LINK_LIBRARIES(apriltag_pose_plugin ${DEPS})
 
-ADD_LIBRARY(frame_publisher_plugin SHARED src/frame_publisher.cpp)
-TARGET_LINK_LIBRARIES(frame_publisher_plugin ${DEPS})
-
 ADD_LIBRARY(tag_box_plugin SHARED src/tag_box_plugin.cpp)
 TARGET_LINK_LIBRARIES(tag_box_plugin ${DEPS})
 
@@ -186,12 +183,14 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 
 add_executable(apriltag_detection_node src/apriltag_detection.cpp)
+add_executable(frame_publisher_node src/frame_publisher.cpp)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
 ## either from message generation or dynamic reconfigure
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(apriltag_detection_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(frame_publisher_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
 ## Rename C++ executable without prefix
@@ -208,6 +207,11 @@ add_dependencies(apriltag_detection_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${c
 target_link_libraries(apriltag_detection_node
   ${catkin_LIBRARIES}
 )
+
+target_link_libraries(frame_publisher_node
+  ${catkin_LIBRARIES}
+)
+
 
 #############
 ## Install ##
