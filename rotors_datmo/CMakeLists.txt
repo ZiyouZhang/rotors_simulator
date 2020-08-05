@@ -23,6 +23,8 @@ FIND_PACKAGE(
     apriltag
     apriltag_ros
 )
+
+INCLUDE_DIRECTORIES(include)
 INCLUDE_DIRECTORIES(src)
 INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${GAZEBO_INCLUDE_DIRS})
@@ -30,6 +32,8 @@ INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 
 # CATKING PACKAGE
 CATKIN_PACKAGE(
+  INCLUDE_DIRS
+    include
   CATKIN_DEPENDS
     roscpp
     rospy
@@ -53,6 +57,9 @@ TARGET_LINK_LIBRARIES(apriltag_depth_plugin ${DEPS})
 
 ADD_LIBRARY(apriltag_pose_plugin SHARED src/pose_plugin.cpp)
 TARGET_LINK_LIBRARIES(apriltag_pose_plugin ${DEPS})
+
+ADD_LIBRARY(frame_publisher_plugin SHARED src/frame_publisher.cpp)
+TARGET_LINK_LIBRARIES(frame_publisher_plugin ${DEPS})
 
 ADD_LIBRARY(tag_box_plugin SHARED src/tag_box_plugin.cpp)
 TARGET_LINK_LIBRARIES(tag_box_plugin ${DEPS})
@@ -91,6 +98,7 @@ find_package(catkin REQUIRED COMPONENTS
   interactive_markers
   apriltag
   apriltag_ros
+  gazebo_ros
 )
 
 
@@ -154,7 +162,7 @@ catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES rotors_datmo
 #  CATKIN_DEPENDS roscpp std_msgs
-#  DEPENDS system_lib
+  DEPENDS gazebo_ros
 )
 
 ###########

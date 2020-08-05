@@ -31,6 +31,8 @@
       <parent>box</parent>
       <child>tag::link</child>
     </joint>
-    <plugin name="tag_box_motion" filename="libtag_box_plugin.so"></plugin>
+    <plugin name="tag_box_plugin" filename="libtag_box_plugin.so">
+    
+    </plugin>
   </model>
 </sdf>
