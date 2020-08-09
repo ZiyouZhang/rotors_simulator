@@ -17,6 +17,7 @@ FIND_PACKAGE(
     std_msgs
     geometry_msgs
     sensor_msgs
+    mav_msgs
     message_runtime
     image_transport
     cv_bridge
@@ -181,9 +182,9 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-
 add_executable(apriltag_detection_node src/apriltag_detection.cpp)
 add_executable(frame_publisher_node src/frame_publisher.cpp)
+add_executable(moving_mav src/moving_mav.cpp)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -191,7 +192,12 @@ add_executable(frame_publisher_node src/frame_publisher.cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(apriltag_detection_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(frame_publisher_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(moving_mav ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
+## Specify libraries to link a library or executable target against
+target_link_libraries(apriltag_detection_node ${catkin_LIBRARIES})
+target_link_libraries(frame_publisher_node ${catkin_LIBRARIES})
+target_link_libraries(moving_mav ${catkin_LIBRARIES})
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -202,16 +208,6 @@ add_dependencies(frame_publisher_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catk
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-target_link_libraries(apriltag_detection_node
-  ${catkin_LIBRARIES}
-)
-
-target_link_libraries(frame_publisher_node
-  ${catkin_LIBRARIES}
-)
-
 
 #############
 ## Install ##

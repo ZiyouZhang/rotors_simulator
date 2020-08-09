@@ -5,6 +5,7 @@
 #include <std_msgs/Float64.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Twist.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -26,6 +27,7 @@ PoseDetector::PoseDetector() : it(nh)
     imageSub = it.subscribeCamera("/firefly/camera_nadir/image_raw", 1, &PoseDetector::imageCallBack, this);
     imagePub = it.advertise("/image_converter/output_video", 1);
     posePub = nh.advertise<geometry_msgs::Pose>("/tag_pose", 1);
+    twistPub = nh.advertise<geometry_msgs::Twist>("/tag_twist", 1);
 
     // Initialise new cv window
     cv::namedWindow(OPENCV_WINDOW);
@@ -56,9 +58,9 @@ PoseDetector::PoseDetector() : it(nh)
     info.cy = 240.5;
 
     // Initialise transformation matrices
-    T_WC << 1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
+    T_TO << 0, -1, 0, 0,
+            0, 0, -1, 0,
+            1, 0, 0, 0.25,
             0, 0, 0, 1;
 }
 
@@ -129,17 +131,17 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
                 pose.R->data[6], pose.R->data[7], pose.R->data[8], pose.t->data[2],
                 0, 0, 0, 1;
 
-        T_WT = T_WC * T_CT;
+        T_WO = T_CT * T_TO;
 
         geometry_msgs::Pose currentPose;
 
-        currentPose.position.x = pose.t->data[0];
-        currentPose.position.y = pose.t->data[1];
-        currentPose.position.z = pose.t->data[2];
+        currentPose.position.x = T_WO(0, 3);
+        currentPose.position.y = T_WO(1, 3);
+        currentPose.position.z = T_WO(2, 3);
 
-        tf::Matrix3x3 rotationMatrix(T_WT(0, 0), T_WT(0, 1), T_WT(0, 2),
-                                     T_WT(1, 0), T_WT(1, 1), T_WT(1, 2),
-                                     T_WT(2, 0), T_WT(2, 1), T_WT(2, 2));
+        tf::Matrix3x3 rotationMatrix(T_WO(0, 0), T_WO(0, 1), T_WO(0, 2),
+                                     T_WO(1, 0), T_WO(1, 1), T_WO(1, 2),
+                                     T_WO(2, 0), T_WO(2, 1), T_WO(2, 2));
 
         rotationMatrix.getRotation(quaternion);
         // tf::quaternionTFToMsg(qt, currentPose.orientation);
@@ -157,15 +159,17 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         //           << currentPose.orientation.w << " "
         //           << std::endl;
 
-        posePub.publish(currentPose);
-
-        transform.setOrigin(tf::Vector3(pose.t->data[0],
-                                        pose.t->data[1],
-                                        pose.t->data[2]));
+        transform.setOrigin(tf::Vector3(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3)));
 
         transform.setRotation(quaternion);
 
         br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "firefly/camera_nadir_optical_link", "detected_tag_box"));
+
+        geometry_msgs::Twist currentTwist;
+        listener.lookupTwist("/tag_box", "/world", "/tag_box", tf::Point(), "/world", ros::Time(0), ros::Duration(0.1), currentTwist);
+
+        posePub.publish(currentPose);
+        twistPub.publish(currentTwist);
     }
 
     apriltag_detections_destroy(detections);

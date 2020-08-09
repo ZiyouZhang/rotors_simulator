@@ -21,7 +21,8 @@ namespace gazebo
     void TagBoxPlugin::OnUpdate()
     {
         // Apply a small linear velocity to the model.
-        model->SetLinearVel(ignition::math::Vector3d(0.05, 0.05, 0.001));
+        if (model->WorldPose().Pos().Z() < 0.3)
+            model->SetLinearVel(ignition::math::Vector3d(0.001, 0.001, 4));
 
         // Publish pose message
         msg.pose.pose.position.x = model->WorldPose().Pos().X();

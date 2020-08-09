@@ -25,23 +25,24 @@ public:
 private:
     ros::NodeHandle nh;
     ros::Publisher posePub;
+    ros::Publisher twistPub;
     image_transport::ImageTransport it;
     image_transport::CameraSubscriber imageSub;
     image_transport::Publisher imagePub;
 
     tf::TransformBroadcaster br;
+    tf::TransformListener listener;
     tf::Transform transform;
     tf::Quaternion quaternion;
-
-    // tf::TransformListener listener;
 
     apriltag_detector_t *td;
     apriltag_family_t *tf;
     apriltag_pose_t pose;
     apriltag_detection_info_t info;
 
-    Eigen::Matrix4d T_WC;
-    Eigen::Matrix4d T_WT;
+    Eigen::Matrix4d T_WO;
+
+    Eigen::Matrix4d T_TO;
 
     // apriltag_ros::TagDetector tagDetector;
 };
