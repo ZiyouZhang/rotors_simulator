@@ -19,6 +19,10 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
+#include <tf/transform_datatypes.h>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
+
 static const std::string OPENCV_WINDOW = "Image window";
 
 PoseDetector::PoseDetector() : it(nh)
@@ -26,8 +30,8 @@ PoseDetector::PoseDetector() : it(nh)
     // Subscrive to input video feed and publish output video feed
     imageSub = it.subscribeCamera("/firefly/camera_nadir/image_raw", 1, &PoseDetector::imageCallBack, this);
     imagePub = it.advertise("/image_converter/output_video", 1);
-    posePub = nh.advertise<geometry_msgs::Pose>("/tag_pose", 1);
-    twistPub = nh.advertise<geometry_msgs::Twist>("/tag_twist", 1);
+    posePub = nh.advertise<geometry_msgs::PoseStamped>("/tag_box_pose", 1);
+    twistPub = nh.advertise<geometry_msgs::Twist>("/tag_box_twist", 1);
 
     // Initialise new cv window
     cv::namedWindow(OPENCV_WINDOW);
@@ -59,9 +63,22 @@ PoseDetector::PoseDetector() : it(nh)
 
     // Initialise transformation matrices
     T_TO << 0, -1, 0, 0,
-            0, 0, -1, 0,
-            1, 0, 0, 0.25,
-            0, 0, 0, 1;
+        0, 0, -1, 0,
+        1, 0, 0, 0.25,
+        0, 0, 0, 1;
+
+    // Initialise measurement
+    visualEKF.lastApriltagMeasurement.timestamp = 0;
+    visualEKF.lastApriltagMeasurement.r_W(0) = 2.0;
+    visualEKF.lastApriltagMeasurement.r_W(1) = -0.5;
+    visualEKF.lastApriltagMeasurement.r_W(2) = 2.5;
+    visualEKF.lastApriltagMeasurement.q_WO = Eigen::Quaterniond(0.0, 0.0, 0.0, 0.0);
+
+    visualEKF.x_.inertia << 0.5 / 3, 0, 0,
+                            0, 0.5 / 3, 0,
+                            0, 0, 0.5 / 3;
+
+    recordFile.open("~/Desktop/log.txt");
 }
 
 PoseDetector::~PoseDetector()
@@ -69,10 +86,18 @@ PoseDetector::~PoseDetector()
     cv::destroyWindow(OPENCV_WINDOW);
     tag36h11_destroy(tf);
     apriltag_detector_destroy(td);
+
+    recordFile.close();
 }
 
 void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const sensor_msgs::CameraInfoConstPtr &camera_info)
 {
+    geometry_msgs::PoseStamped currentPose;
+    currentPose.header.frame_id = "/detected_tag_box";
+    currentPose.header.stamp = ros::Time::now();
+
+    visualEKF.currentApriltagMeasurement.timestamp = ros::Time::now().toSec();
+
     cv_bridge::CvImagePtr cv_ptr;
     try
     {
@@ -85,10 +110,10 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
     }
 
     // Convert cv::Mat to image_u8_t for apriltag package
-    image_u8_t img_header ={ .width = cv_ptr->image.cols,
-        .height = cv_ptr->image.rows,
-        .stride = cv_ptr->image.cols,
-        .buf = cv_ptr->image.data };
+    image_u8_t img_header = {.width = cv_ptr->image.cols,
+                             .height = cv_ptr->image.rows,
+                             .stride = cv_ptr->image.cols,
+                             .buf = cv_ptr->image.data};
 
     zarray_t *detections = apriltag_detector_detect(td, &img_header);
 
@@ -98,17 +123,17 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         zarray_get(detections, i, &det);
 
         line(cv_ptr->image, cv::Point(det->p[0][0], det->p[0][1]),
-            cv::Point(det->p[1][0], det->p[1][1]),
-            cv::Scalar(0, 0xff, 0), 2);
+             cv::Point(det->p[1][0], det->p[1][1]),
+             cv::Scalar(0, 0xff, 0), 2);
         line(cv_ptr->image, cv::Point(det->p[0][0], det->p[0][1]),
-            cv::Point(det->p[3][0], det->p[3][1]),
-            cv::Scalar(0, 0, 0xff), 2);
+             cv::Point(det->p[3][0], det->p[3][1]),
+             cv::Scalar(0, 0, 0xff), 2);
         line(cv_ptr->image, cv::Point(det->p[1][0], det->p[1][1]),
-            cv::Point(det->p[2][0], det->p[2][1]),
-            cv::Scalar(0xff, 0, 0), 2);
+             cv::Point(det->p[2][0], det->p[2][1]),
+             cv::Scalar(0xff, 0, 0), 2);
         line(cv_ptr->image, cv::Point(det->p[2][0], det->p[2][1]),
-            cv::Point(det->p[3][0], det->p[3][1]),
-            cv::Scalar(0xff, 0, 0), 2);
+             cv::Point(det->p[3][0], det->p[3][1]),
+             cv::Scalar(0xff, 0, 0), 2);
 
         std::stringstream ss;
         ss << det->id;
@@ -117,9 +142,9 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         double fontscale = 1.0;
         int baseline;
         cv::Size textsize = getTextSize(text, fontface, fontscale, 2,
-            &baseline);
+                                        &baseline);
         putText(cv_ptr->image, text, cv::Point(det->c[0] - textsize.width / 2, det->c[1] + textsize.height / 2),
-            fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
+                fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
 
         // First create an apriltag_detection_info_t struct using known parameters.
         info.det = det;
@@ -127,37 +152,61 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
 
         Eigen::Matrix4d T_CT;
         T_CT << pose.R->data[0], pose.R->data[1], pose.R->data[2], pose.t->data[0],
-                pose.R->data[3], pose.R->data[4], pose.R->data[5], pose.t->data[1],
-                pose.R->data[6], pose.R->data[7], pose.R->data[8], pose.t->data[2],
-                0, 0, 0, 1;
+            pose.R->data[3], pose.R->data[4], pose.R->data[5], pose.t->data[1],
+            pose.R->data[6], pose.R->data[7], pose.R->data[8], pose.t->data[2],
+            0, 0, 0, 1;
 
         T_WO = T_CT * T_TO;
 
-        geometry_msgs::Pose currentPose;
-
-        currentPose.position.x = T_WO(0, 3);
-        currentPose.position.y = T_WO(1, 3);
-        currentPose.position.z = T_WO(2, 3);
+        currentPose.pose.position.x = T_WO(0, 3);
+        currentPose.pose.position.y = T_WO(1, 3);
+        currentPose.pose.position.z = T_WO(2, 3);
 
         tf::Matrix3x3 rotationMatrix(T_WO(0, 0), T_WO(0, 1), T_WO(0, 2),
                                      T_WO(1, 0), T_WO(1, 1), T_WO(1, 2),
                                      T_WO(2, 0), T_WO(2, 1), T_WO(2, 2));
 
         rotationMatrix.getRotation(quaternion);
-        // tf::quaternionTFToMsg(qt, currentPose.orientation);
+        tf::quaternionTFToMsg(quaternion, currentPose.pose.orientation);
 
         // // transformStuff
         // tf::StampedTransform transform;
 
-        // debug the position info
-        // std::cout << currentPose.position.x << " "
-        //           << currentPose.position.y << " "
-        //           << currentPose.position.z << " "
-        //           << currentPose.orientation.x << " "
-        //           << currentPose.orientation.y << " "
-        //           << currentPose.orientation.z << " "
-        //           << currentPose.orientation.w << " "
-        //           << std::endl;
+        visualEKF.currentApriltagMeasurement.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
+        Eigen::Quaterniond eigen_quaterion(quaternion.getW(),
+                                           quaternion.getAxis().getX(),
+                                           quaternion.getAxis().getY(),
+                                           quaternion.getAxis().getZ());
+        visualEKF.currentApriltagMeasurement.q_WO = eigen_quaterion;
+        visualEKF.predict();
+
+        std::cout << visualEKF.x_.r_W(0)
+                  << visualEKF.x_.r_W(1)
+                  << visualEKF.x_.r_W(2)
+                  << visualEKF.x_.q_WO.w()
+                  << visualEKF.x_.q_WO.vec()
+                  << visualEKF.x_.v_O(0)
+                  << visualEKF.x_.v_O(1)
+                  << visualEKF.x_.v_O(2)
+                  << visualEKF.x_.omega_O(0)
+                  << visualEKF.x_.omega_O(1)
+                  << visualEKF.x_.omega_O(2)
+                  << "\n";
+
+        // ROS_INFO( visualEKF.x_.r_W(0),
+        //           visualEKF.x_.r_W(1),
+        //           visualEKF.x_.r_W(2),
+        //           visualEKF.x_.q_WO.w(),
+        //           visualEKF.x_.q_WO.vec(),
+        //           visualEKF.x_.v_O(0),
+        //           visualEKF.x_.v_O(1),
+        //           visualEKF.x_.v_O(2),
+        //           visualEKF.x_.omega_O(0),
+        //           visualEKF.x_.omega_O(1),
+        //           visualEKF.x_.omega_O(2),
+        //           "\n");
+
+        visualEKF.lastApriltagMeasurement = visualEKF.lastApriltagMeasurement;
 
         transform.setOrigin(tf::Vector3(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3)));
 

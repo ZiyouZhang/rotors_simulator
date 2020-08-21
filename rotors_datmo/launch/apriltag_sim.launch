@@ -26,9 +26,9 @@
       <remap from="odometry" to="odometry_sensor1/odometry" />
     </node>
 
-    <!-- <node name="moving_mav" pkg="rotors_datmo" type="moving_mav" output="screen"/> -->
-    
-    <node name="hovering_example" pkg="rotors_gazebo" type="hovering_example" output="screen"/>
+    <node name="moving_mav" pkg="rotors_datmo" type="moving_mav" output="screen"/>
+
+    <!-- <node name="hovering_example" pkg="rotors_gazebo" type="hovering_example" output="screen"/> -->
 
     <!-- <node name="key_joystick" pkg="rotors_joy_interface" type="key_joystick.py" />
     <node name="joy_node" pkg="joy" type="joy_node" />
@@ -48,11 +48,11 @@
     <arg name="use_sim_time" value="true" />
     <arg name="debug" value="true"/>
     <arg name="verbose" value="true"/>
-    <arg name="paused" value="true"/>
-    <arg name="gui" value="true"/>
+    <arg name="paused" value="false"/>
+    <arg name="gui" value="false"/>
   </include>
 
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find rotors_datmo)/rviz/april_tag_detection.rviz" />
-  <node type="apriltag_detection_node" name="apriltag_detection" pkg="rotors_datmo" />
-
+  <node type="apriltag_detection_node" name="apriltag_detection" pkg="rotors_datmo" output="screen"/>
+  <!-- <node type="record" name="rosbag_record_all" pkg="rosbag" args="record -a"/> -->
 </launch>

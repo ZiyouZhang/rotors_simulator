@@ -1,5 +1,5 @@
-#ifndef APRILTAG_DETECTION_H
-#define APRILTAG_DETECTION_H
+#ifndef APRILTAG_DETECTION_H_
+#define APRILTAG_DETECTION_H_
 
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
@@ -13,7 +13,8 @@
 #include "apriltag/tag36h11.h"
 #include "apriltag/apriltag_pose.h"
 #include "apriltag/apriltag_math.h"
-// #include "apriltag_ros/common_functions.h"
+
+#include "visual_ekf.hpp"
 
 class PoseDetector
 {
@@ -24,8 +25,10 @@ public:
 
 private:
     ros::NodeHandle nh;
+    ros::Publisher objectStatePub;
     ros::Publisher posePub;
     ros::Publisher twistPub;
+
     image_transport::ImageTransport it;
     image_transport::CameraSubscriber imageSub;
     image_transport::Publisher imagePub;
@@ -41,10 +44,13 @@ private:
     apriltag_detection_info_t info;
 
     Eigen::Matrix4d T_WO;
-
     Eigen::Matrix4d T_TO;
 
-    // apriltag_ros::TagDetector tagDetector;
+    VisualEKF visualEKF;
+    uint64_t lastImageTime;
+    uint64_t currentImageTime;
+
+    std::ofstream recordFile;
 };
 
-#endif // APRILTAG_DETECTION_H
+#endif // APRILTAG_DETECTION_H_

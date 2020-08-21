@@ -62,6 +62,8 @@ TARGET_LINK_LIBRARIES(apriltag_pose_plugin ${DEPS})
 ADD_LIBRARY(tag_box_plugin SHARED src/tag_box_plugin.cpp)
 TARGET_LINK_LIBRARIES(tag_box_plugin ${DEPS})
 
+ADD_LIBRARY(${PROJECT_NAME} src/visual_ekf.cpp)
+
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
@@ -196,6 +198,7 @@ add_dependencies(moving_mav ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTE
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(apriltag_detection_node ${catkin_LIBRARIES})
+target_link_libraries(apriltag_detection_node ${PROJECT_NAME})
 target_link_libraries(frame_publisher_node ${catkin_LIBRARIES})
 target_link_libraries(moving_mav ${catkin_LIBRARIES})
 
