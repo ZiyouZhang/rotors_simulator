@@ -79,7 +79,7 @@ PoseDetector::PoseDetector() : it(nh)
     visualEKF.lastApriltagMeasurement.r_W(0) = 2.0;
     visualEKF.lastApriltagMeasurement.r_W(1) = -0.5;
     visualEKF.lastApriltagMeasurement.r_W(2) = 2.5;
-    visualEKF.lastApriltagMeasurement.q_WO = Eigen::Quaterniond(0.0, 0.0, 0.0, 0.0);
+    visualEKF.lastApriltagMeasurement.q_WO = Eigen::Quaterniond(1.0, 0.0, 0.0, 0.0);
 
     visualEKF.x_.inertia << 0.5 / 3, 0, 0,
         0, 0.5 / 3, 0,
