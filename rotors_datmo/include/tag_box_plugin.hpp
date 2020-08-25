@@ -34,13 +34,8 @@ namespace gazebo
         // Navigation pose message
         nav_msgs::Odometry msg;
 
-        // Pose message
-        ignition::math::Pose3d pose;
-
         ros::NodeHandle nh;
         ros::Publisher posePub;
-
-        ros::Subscriber frameSub;
         tf::TransformBroadcaster br;
     };
 

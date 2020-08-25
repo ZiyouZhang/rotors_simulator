@@ -74,8 +74,8 @@ int main(int argc, char** argv) {
   while(ros::ok()) {
     // Overwrite defaults if set as node parameters.
 
-    desired_y = -0.5 + 0.5 * (aux % 3);
-    desired_z = 0.5 + 0.5 * ((aux % 9) / 3) ;
+    desired_y = -0.5 + 0.1 * (aux % 3);
+    desired_z = 0.5 + 0.1 * ((aux % 9) / 3) ;
     aux++;
 
     desired_position << desired_x, desired_y, desired_z;

@@ -31,25 +31,6 @@ INCLUDE_DIRECTORIES(${catkin_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${GAZEBO_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 
-# CATKING PACKAGE
-CATKIN_PACKAGE(
-  INCLUDE_DIRS
-    include
-  CATKIN_DEPENDS
-    roscpp
-    rospy
-    rosbag
-    message_generation
-    std_msgs
-    geometry_msgs
-    sensor_msgs
-    message_runtime
-    image_transport
-    cv_bridge
-  LIBRARIES
-    rotors_datmo
-)
-
 # Gazebo plugins
 SET(DEPS ${catkin_LIBRARIES})
 
@@ -105,8 +86,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 # add_message_files(
 #   FILES
-#   Message1.msg
-#   Message2.msg
+#   std_msg
 # )
 
 ## Generate services in the 'srv' folder
@@ -127,6 +107,7 @@ find_package(catkin REQUIRED COMPONENTS
 # generate_messages(
 #   DEPENDENCIES
 #   std_msgs
+#   geometry_msgs
 # )
 
 ################################################
@@ -158,6 +139,27 @@ find_package(catkin REQUIRED COMPONENTS
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
+
+
+# CATKING PACKAGE
+CATKIN_PACKAGE(
+  INCLUDE_DIRS
+    include
+  CATKIN_DEPENDS
+    roscpp
+    rospy
+    rosbag
+    message_generation
+    std_msgs
+    geometry_msgs
+    sensor_msgs
+    message_runtime
+    image_transport
+    cv_bridge
+  LIBRARIES
+    rotors_datmo
+)
+
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES rotors_datmo

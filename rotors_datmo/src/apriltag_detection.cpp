@@ -3,9 +3,9 @@
 #include <ros/console.h>
 #include <sensor_msgs/image_encodings.h>
 #include <std_msgs/Float64.h>
-#include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Twist.h>
+#include <nav_msgs/Odometry.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -23,6 +23,8 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
+#include <iostream>
+
 static const std::string OPENCV_WINDOW = "Image window";
 
 PoseDetector::PoseDetector() : it(nh)
@@ -30,8 +32,8 @@ PoseDetector::PoseDetector() : it(nh)
     // Subscrive to input video feed and publish output video feed
     imageSub = it.subscribeCamera("/firefly/camera_nadir/image_raw", 1, &PoseDetector::imageCallBack, this);
     imagePub = it.advertise("/image_converter/output_video", 1);
-    posePub = nh.advertise<geometry_msgs::PoseStamped>("/tag_box_pose", 1);
-    twistPub = nh.advertise<geometry_msgs::Twist>("/tag_box_twist", 1);
+    predictionPub = nh.advertise<nav_msgs::Odometry>("/predicted_object_state", 1);
+    detectionPub = nh.advertise<nav_msgs::Odometry>("/detected_tag_box_pose", 1);
 
     // Initialise new cv window
     cv::namedWindow(OPENCV_WINDOW);
@@ -67,6 +69,11 @@ PoseDetector::PoseDetector() : it(nh)
         1, 0, 0, 0.25,
         0, 0, 0, 1;
 
+    // T_TO << 1, 0, 0, 0.25,
+    //     0, 1, 0, 0,
+    //     0, 0, 1, 0,
+    //     0, 0, 0, 1;
+
     // Initialise measurement
     visualEKF.lastApriltagMeasurement.timestamp = 0;
     visualEKF.lastApriltagMeasurement.r_W(0) = 2.0;
@@ -75,10 +82,8 @@ PoseDetector::PoseDetector() : it(nh)
     visualEKF.lastApriltagMeasurement.q_WO = Eigen::Quaterniond(0.0, 0.0, 0.0, 0.0);
 
     visualEKF.x_.inertia << 0.5 / 3, 0, 0,
-                            0, 0.5 / 3, 0,
-                            0, 0, 0.5 / 3;
-
-    recordFile.open("~/Desktop/log.txt");
+        0, 0.5 / 3, 0,
+        0, 0, 0.5 / 3;
 }
 
 PoseDetector::~PoseDetector()
@@ -86,16 +91,23 @@ PoseDetector::~PoseDetector()
     cv::destroyWindow(OPENCV_WINDOW);
     tag36h11_destroy(tf);
     apriltag_detector_destroy(td);
-
-    recordFile.close();
 }
 
 void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const sensor_msgs::CameraInfoConstPtr &camera_info)
 {
-    geometry_msgs::PoseStamped currentPose;
-    currentPose.header.frame_id = "/detected_tag_box";
-    currentPose.header.stamp = ros::Time::now();
+    geometry_msgs::Twist currentTwist;
+    nav_msgs::Odometry detected_state;
+    nav_msgs::Odometry predicted_state;
 
+    detected_state.header.frame_id = "/detected_tag_box";
+    detected_state.header.stamp = ros::Time::now();
+
+    predicted_state.header.frame_id = "/detected_tag_box";
+    predicted_state.header.stamp = ros::Time::now();
+
+    visualEKF.x_.timestamp = ros::Time::now().toSec();
+    visualEKF.x_predicted_.timestamp = ros::Time::now().toSec();
+    visualEKF.x_propagated_.timestamp = ros::Time::now().toSec();
     visualEKF.currentApriltagMeasurement.timestamp = ros::Time::now().toSec();
 
     cv_bridge::CvImagePtr cv_ptr;
@@ -156,69 +168,81 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
             pose.R->data[6], pose.R->data[7], pose.R->data[8], pose.t->data[2],
             0, 0, 0, 1;
 
-        T_WO = T_CT * T_TO;
+        tf::StampedTransform transform_WC;
+        listener.lookupTransform("/world", "/firefly/camera_nadir_optical_link", ros::Time(0), transform_WC);
+        Eigen::Matrix4d T_WC;
+        T_WC << transform_WC.getBasis()[0][0], transform_WC.getBasis()[0][1], transform_WC.getBasis()[0][2], transform_WC.getOrigin()[0],
+            transform_WC.getBasis()[1][0], transform_WC.getBasis()[1][2], transform_WC.getBasis()[1][2], transform_WC.getOrigin()[1],
+            transform_WC.getBasis()[2][0], transform_WC.getBasis()[2][1], transform_WC.getBasis()[2][2], transform_WC.getOrigin()[2],
+            0, 0, 0, 1;
 
-        currentPose.pose.position.x = T_WO(0, 3);
-        currentPose.pose.position.y = T_WO(1, 3);
-        currentPose.pose.position.z = T_WO(2, 3);
+        // std::cout << transform.getBasis()[0][0] << " " << transform.getBasis()[0][1] << " " << transform.getBasis()[0][2] << std::endl
+        //           << transform.getBasis()[1][0] << " " << transform.getBasis()[1][1] << " " << transform.getBasis()[1][2] << std::endl
+        //           << transform.getBasis()[2][0] << " " << transform.getBasis()[2][1] << " " << transform.getBasis()[2][2] << std::endl
+        // std::cout << transform.getOrigin()[0] << " " << transform.getOrigin()[1] << " " << transform.getOrigin()[2] << std::endl;
+
+        T_WO = T_WC * T_CT * T_TO;
+
+        detected_state.pose.pose.position.x = T_WO(0, 3);
+        detected_state.pose.pose.position.y = T_WO(1, 3);
+        detected_state.pose.pose.position.z = T_WO(2, 3);
 
         tf::Matrix3x3 rotationMatrix(T_WO(0, 0), T_WO(0, 1), T_WO(0, 2),
                                      T_WO(1, 0), T_WO(1, 1), T_WO(1, 2),
                                      T_WO(2, 0), T_WO(2, 1), T_WO(2, 2));
+        rotationMatrix.getRotation(quaternion_WO);
+        quaternion_WO.normalize();
+        tf::quaternionTFToMsg(quaternion_WO, detected_state.pose.pose.orientation);
 
-        rotationMatrix.getRotation(quaternion);
-        tf::quaternionTFToMsg(quaternion, currentPose.pose.orientation);
+        listener.lookupTwist("/tag_box", "/world", "/tag_box", tf::Point(), "/world", ros::Time(0), ros::Duration(0.1), currentTwist);
+        detected_state.twist.twist = currentTwist;
 
-        // // transformStuff
-        // tf::StampedTransform transform;
+        // construct the detected tf and broadcast
+        transform_WO.setOrigin(tf::Vector3(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3)));
+        transform_WO.setRotation(quaternion_WO);
+        br.sendTransform(tf::StampedTransform(transform_WO, ros::Time::now(), "/world", "detected_tag_box"));
 
         visualEKF.currentApriltagMeasurement.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
-        Eigen::Quaterniond eigen_quaterion(quaternion.getW(),
-                                           quaternion.getAxis().getX(),
-                                           quaternion.getAxis().getY(),
-                                           quaternion.getAxis().getZ());
+        Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
+                                           quaternion_WO.getAxis().getX(),
+                                           quaternion_WO.getAxis().getY(),
+                                           quaternion_WO.getAxis().getZ());
         visualEKF.currentApriltagMeasurement.q_WO = eigen_quaterion;
         visualEKF.predict();
+        visualEKF.lastApriltagMeasurement = visualEKF.currentApriltagMeasurement;
 
-        std::cout << visualEKF.x_.r_W(0)
-                  << visualEKF.x_.r_W(1)
-                  << visualEKF.x_.r_W(2)
-                  << visualEKF.x_.q_WO.w()
-                  << visualEKF.x_.q_WO.vec()
-                  << visualEKF.x_.v_O(0)
-                  << visualEKF.x_.v_O(1)
-                  << visualEKF.x_.v_O(2)
-                  << visualEKF.x_.omega_O(0)
-                  << visualEKF.x_.omega_O(1)
-                  << visualEKF.x_.omega_O(2)
-                  << "\n";
+        // construct predicted state
+        predicted_state.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
+        predicted_state.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
+        predicted_state.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
+        predicted_state.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
+        predicted_state.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
+        predicted_state.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
+        predicted_state.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
+        predicted_state.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
+        predicted_state.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
+        predicted_state.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
+        predicted_state.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
+        predicted_state.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
+        predicted_state.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
 
-        // ROS_INFO( visualEKF.x_.r_W(0),
-        //           visualEKF.x_.r_W(1),
-        //           visualEKF.x_.r_W(2),
-        //           visualEKF.x_.q_WO.w(),
-        //           visualEKF.x_.q_WO.vec(),
-        //           visualEKF.x_.v_O(0),
-        //           visualEKF.x_.v_O(1),
-        //           visualEKF.x_.v_O(2),
-        //           visualEKF.x_.omega_O(0),
-        //           visualEKF.x_.omega_O(1),
-        //           visualEKF.x_.omega_O(2),
-        //           "\n");
+        predictionPub.publish(predicted_state);
+        detectionPub.publish(detected_state);
 
-        visualEKF.lastApriltagMeasurement = visualEKF.lastApriltagMeasurement;
+        // debug predicted state
+        std::cout << std::endl
+                  << "r_W: " << std::endl
+                  << visualEKF.x_predicted_.r_W << std::endl
+                  << "q_WO: " << std::endl
+                  << visualEKF.x_predicted_.q_WO.w() << visualEKF.x_predicted_.q_WO.vec() << std::endl
+                  << "v_O: " << std::endl
+                  << visualEKF.x_predicted_.v_O << std::endl
+                  << "omega_O: " << std::endl
+                  << visualEKF.x_predicted_.omega_O << std::endl
+                  << std::endl;
 
-        transform.setOrigin(tf::Vector3(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3)));
-
-        transform.setRotation(quaternion);
-
-        br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "firefly/camera_nadir_optical_link", "detected_tag_box"));
-
-        geometry_msgs::Twist currentTwist;
-        listener.lookupTwist("/tag_box", "/world", "/tag_box", tf::Point(), "/world", ros::Time(0), ros::Duration(0.1), currentTwist);
-
-        posePub.publish(currentPose);
-        twistPub.publish(currentTwist);
+        // debug detected pose
+        // std::cout << detected_state.header.stamp.sec + detected_state.header.stamp.nsec * 10e-9 << "," << detected_state.pose.pose.position.z << "," << T_WO(2, 3) << std::endl;
     }
 
     apriltag_detections_destroy(detections);
@@ -229,8 +253,8 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
     // }
 
     // Update GUI Window
-    cv::imshow(OPENCV_WINDOW, cv_ptr->image);
-    cv::waitKey(3);
+    // cv::imshow(OPENCV_WINDOW, cv_ptr->image);
+    // cv::waitKey(3);
 
     // Output modified video stream
     imagePub.publish(cv_ptr->toImageMsg());

@@ -25,9 +25,8 @@ public:
 
 private:
     ros::NodeHandle nh;
-    ros::Publisher objectStatePub;
-    ros::Publisher posePub;
-    ros::Publisher twistPub;
+    ros::Publisher predictionPub;
+    ros::Publisher detectionPub;
 
     image_transport::ImageTransport it;
     image_transport::CameraSubscriber imageSub;
@@ -35,8 +34,8 @@ private:
 
     tf::TransformBroadcaster br;
     tf::TransformListener listener;
-    tf::Transform transform;
-    tf::Quaternion quaternion;
+    tf::Transform transform_WO;
+    tf::Quaternion quaternion_WO;
 
     apriltag_detector_t *td;
     apriltag_family_t *tf;
@@ -49,8 +48,6 @@ private:
     VisualEKF visualEKF;
     uint64_t lastImageTime;
     uint64_t currentImageTime;
-
-    std::ofstream recordFile;
 };
 
 #endif // APRILTAG_DETECTION_H_

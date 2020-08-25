@@ -50,9 +50,8 @@ public:
                          const ApriltagMeasurement &z_k,
                          Eigen::Matrix<double, 13, 13> &jacobian);
 
-    bool calcStateDerivative(const ObjectState &state,
-                             const ApriltagMeasurement &z,
-                             ObjectStateDerivative &stateDerivative);
+    ObjectStateDerivative calcStateDerivative(const ObjectState &state,
+                                              const ApriltagMeasurement &z);
 
     bool calcJacobian(const ObjectState &state,
                       const ApriltagMeasurement &measurement,
@@ -60,6 +59,7 @@ public:
 
 private:
     ObjectState x_;
+    ObjectState x_predicted_;
     ObjectState x_propagated_;
 
     ros::Time last_update_time_;
