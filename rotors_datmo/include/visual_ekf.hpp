@@ -44,17 +44,24 @@ public:
     VisualEKF();
     ~VisualEKF();
 
+    bool initialise(ros::Time rosTimeStamp,
+                    const ObjectState &x0,
+                    const Eigen::Matrix<double, 13, 13> &P0);
+
+    bool linearise();
+
+    bool predict(const double dt);
+
+    bool update(const ApriltagMeasurement apriltagMeasurement);
+
     bool stateTransition(const ObjectState &object_state_k_minues_1,
                          ObjectState &object_state_1,
-                         const ApriltagMeasurement &z_k_minus_1,
-                         const ApriltagMeasurement &z_k,
+                         const double dt,
                          Eigen::Matrix<double, 13, 13> &jacobian);
 
-    ObjectStateDerivative calcStateDerivative(const ObjectState &state,
-                                              const ApriltagMeasurement &z);
+    ObjectStateDerivative calcStateDerivative(const ObjectState &state);
 
     bool calcJacobian(const ObjectState &state,
-                      const ApriltagMeasurement &measurement,
                       Eigen::Matrix<double, 13, 13> &jacobian);
 
 private:
@@ -71,19 +78,13 @@ private:
     Eigen::Matrix<double, 13, 13> P_;
     Eigen::Matrix<double, 13, 13> jacobian;
 
-    bool initialise(ros::Time rosTimeStamp,
-                    const ObjectState &x0,
-                    const Eigen::Matrix<double, 13, 13> &P0);
-
-    bool linearise();
-    bool predict();
-    bool update();
-
     // noise params
-    double sigma_c_r_W = 5.0e-2;     // 0.05 meter for tag detection error
+    double sigma_c_r_W = 1.0e-2;     // 0.01 meter for tag detection error
     double sigma_c_q_WO = 1.0e-3;    // 0.001 for quoternion error
     double sigma_c_v_O = 5.0e-2;     // 0.05 velocity error
     double sigma_c_omega_O = 5.0e-4; // 5e-4, amgular velocity error
+    double sigma_z_r_W = 0.05; // 0.05 meter for pose measurement error
+    double sigma_z_q_WO = 0.01; // 0.001 for quaternion measurement error
 
     friend class PoseDetector;
 };

@@ -22,9 +22,8 @@ namespace gazebo
         msg.header.stamp = ros::Time::now();
         // Apply a small linear velocity to the model.
         if (model->WorldPose().Pos().Z() < 0.3)
-            // model->SetWorldPose(ignition::math::Pose3d(2.0, -0.5, 2.5, 1.0, 0.0, 0.0));
-             model->SetLinearVel(ignition::math::Vector3d(0.05, 0.05, 0.001));
-
+            model->SetLinearVel(ignition::math::Vector3d(0.0, 0.0, 4));
+            // model->SetWorldPose(ignition::math::Pose3d(2.0, -0.5, 2.5, 0.0, 0.0, 0.0));
 
         // model->SetLinearVel(ignition::math::Vector3d(0.05, 0.05, 0.001));
 

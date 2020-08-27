@@ -25,8 +25,10 @@ public:
 
 private:
     ros::NodeHandle nh;
-    ros::Publisher predictionPub;
     ros::Publisher detectionPub;
+    ros::Publisher predictionPub;
+    ros::Publisher predictionPub2;
+    ros::Publisher predictionPub3;
 
     image_transport::ImageTransport it;
     image_transport::CameraSubscriber imageSub;

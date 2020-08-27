@@ -58,7 +58,7 @@
     <!-- Tag Box -->
     <include>
       <uri>model://tag_box</uri>
-      <pose>2.0 -0.5 2.5 0.0 0.0 0.0</pose>
+      <pose>2.0 -0.5 1.2 0.0 0.0 0.0</pose>
       <static>false</static>
     </include>
 

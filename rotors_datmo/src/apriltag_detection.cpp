@@ -30,10 +30,12 @@ static const std::string OPENCV_WINDOW = "Image window";
 PoseDetector::PoseDetector() : it(nh)
 {
     // Subscrive to input video feed and publish output video feed
-    imageSub = it.subscribeCamera("/firefly/camera_nadir/image_raw", 1, &PoseDetector::imageCallBack, this);
-    imagePub = it.advertise("/image_converter/output_video", 1);
-    predictionPub = nh.advertise<nav_msgs::Odometry>("/predicted_object_state", 1);
-    detectionPub = nh.advertise<nav_msgs::Odometry>("/detected_tag_box_pose", 1);
+    imageSub = it.subscribeCamera("/firefly/camera_nadir/image_raw", 10, &PoseDetector::imageCallBack, this);
+    imagePub = it.advertise("/image_converter/output_video", 10);
+    predictionPub = nh.advertise<nav_msgs::Odometry>("/predicted_object_state", 10);
+    predictionPub2 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state2", 1);
+    predictionPub3 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state3", 1);
+    detectionPub = nh.advertise<nav_msgs::Odometry>("/detected_tag_box_pose", 10);
 
     // Initialise new cv window
     cv::namedWindow(OPENCV_WINDOW);
@@ -69,18 +71,6 @@ PoseDetector::PoseDetector() : it(nh)
         1, 0, 0, 0.25,
         0, 0, 0, 1;
 
-    // T_TO << 1, 0, 0, 0.25,
-    //     0, 1, 0, 0,
-    //     0, 0, 1, 0,
-    //     0, 0, 0, 1;
-
-    // Initialise measurement
-    visualEKF.lastApriltagMeasurement.timestamp = 0;
-    visualEKF.lastApriltagMeasurement.r_W(0) = 2.0;
-    visualEKF.lastApriltagMeasurement.r_W(1) = -0.5;
-    visualEKF.lastApriltagMeasurement.r_W(2) = 2.5;
-    visualEKF.lastApriltagMeasurement.q_WO = Eigen::Quaterniond(1.0, 0.0, 0.0, 0.0);
-
     visualEKF.x_.inertia << 0.5 / 3, 0, 0,
         0, 0.5 / 3, 0,
         0, 0, 0.5 / 3;
@@ -98,17 +88,20 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
     geometry_msgs::Twist currentTwist;
     nav_msgs::Odometry detected_state;
     nav_msgs::Odometry predicted_state;
+    nav_msgs::Odometry predicted_state2;
+    nav_msgs::Odometry predicted_state3;
 
-    detected_state.header.frame_id = "/detected_tag_box";
-    detected_state.header.stamp = ros::Time::now();
+    predicted_state.header.frame_id = "/predicted_tag_box";
+    predicted_state.header.stamp = ros::Time::now() + ros::Duration(1.0 / 60);
 
-    predicted_state.header.frame_id = "/detected_tag_box";
-    predicted_state.header.stamp = ros::Time::now();
+    predicted_state2.header.frame_id = "/predicted_tag_box2";
+    predicted_state2.header.stamp = ros::Time::now() + ros::Duration(2.0 / 60);
+
+    predicted_state3.header.frame_id = "/predicted_tag_box3";
+    predicted_state3.header.stamp = ros::Time::now() + ros::Duration(3.0 / 60);
 
     visualEKF.x_.timestamp = ros::Time::now().toSec();
-    visualEKF.x_predicted_.timestamp = ros::Time::now().toSec();
-    visualEKF.x_propagated_.timestamp = ros::Time::now().toSec();
-    visualEKF.currentApriltagMeasurement.timestamp = ros::Time::now().toSec();
+    visualEKF.x_predicted_.timestamp = (ros::Time::now() + ros::Duration(1.0 / 60)).toSec();
 
     cv_bridge::CvImagePtr cv_ptr;
     try
@@ -162,6 +155,9 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         info.det = det;
         double err = estimate_tag_pose(&info, &pose);
 
+        detected_state.header.frame_id = "/detected_tag_box";
+        detected_state.header.stamp = ros::Time::now();
+
         Eigen::Matrix4d T_CT;
         T_CT << pose.R->data[0], pose.R->data[1], pose.R->data[2], pose.t->data[0],
             pose.R->data[3], pose.R->data[4], pose.R->data[5], pose.t->data[1],
@@ -183,6 +179,11 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
 
         T_WO = T_WC * T_CT * T_TO;
 
+        // construct the detected tf and broadcast
+        transform_WO.setOrigin(tf::Vector3(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3)));
+        transform_WO.setRotation(quaternion_WO);
+        br.sendTransform(tf::StampedTransform(transform_WO, ros::Time::now(), "/world", "detected_tag_box"));
+
         detected_state.pose.pose.position.x = T_WO(0, 3);
         detected_state.pose.pose.position.y = T_WO(1, 3);
         detected_state.pose.pose.position.z = T_WO(2, 3);
@@ -194,24 +195,24 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         quaternion_WO.normalize();
         tf::quaternionTFToMsg(quaternion_WO, detected_state.pose.pose.orientation);
 
-        listener.lookupTwist("/tag_box", "/world", "/tag_box", tf::Point(), "/world", ros::Time(0), ros::Duration(0.1), currentTwist);
+        listener.lookupTwist("/tag_box", "/world", ros::Time(0), ros::Duration(0.1), currentTwist);
         detected_state.twist.twist = currentTwist;
 
-        // construct the detected tf and broadcast
-        transform_WO.setOrigin(tf::Vector3(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3)));
-        transform_WO.setRotation(quaternion_WO);
-        br.sendTransform(tf::StampedTransform(transform_WO, ros::Time::now(), "/world", "detected_tag_box"));
+        detectionPub.publish(detected_state);
 
-        visualEKF.currentApriltagMeasurement.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
+        visualEKF.x_.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
         Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
                                            quaternion_WO.getAxis().getX(),
                                            quaternion_WO.getAxis().getY(),
                                            quaternion_WO.getAxis().getZ());
-        visualEKF.currentApriltagMeasurement.q_WO = eigen_quaterion;
-        visualEKF.predict();
-        visualEKF.lastApriltagMeasurement = visualEKF.currentApriltagMeasurement;
-
-        // construct predicted state
+        visualEKF.x_.q_WO = eigen_quaterion;
+        visualEKF.x_.v_O = Eigen::Vector3d(currentTwist.linear.x,
+                                           currentTwist.linear.y,
+                                           currentTwist.linear.z);
+        visualEKF.x_.omega_O = Eigen::Vector3d(currentTwist.angular.x,
+                                               currentTwist.angular.y,
+                                               currentTwist.angular.z);
+        visualEKF.predict(1.0 / 60);
         predicted_state.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
         predicted_state.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
         predicted_state.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
@@ -225,21 +226,54 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         predicted_state.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
         predicted_state.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
         predicted_state.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
-
         predictionPub.publish(predicted_state);
-        detectionPub.publish(detected_state);
+
+        visualEKF.predict(2.0 / 60);
+        visualEKF.x_predicted_.timestamp += 2.0 / 60;
+        predicted_state2.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
+        predicted_state2.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
+        predicted_state2.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
+        predicted_state2.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
+        predicted_state2.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
+        predicted_state2.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
+        predicted_state2.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
+        predicted_state2.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
+        predicted_state2.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
+        predicted_state2.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
+        predicted_state2.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
+        predicted_state2.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
+        predicted_state2.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
+        predictionPub2.publish(predicted_state2);
+
+        visualEKF.predict(3.0 / 60);
+        visualEKF.x_predicted_.timestamp += 3.0 / 60;
+        predicted_state3.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
+        predicted_state3.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
+        predicted_state3.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
+        predicted_state3.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
+        predicted_state3.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
+        predicted_state3.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
+        predicted_state3.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
+        predicted_state3.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
+        predicted_state3.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
+        predicted_state3.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
+        predicted_state3.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
+        predicted_state3.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
+        predicted_state3.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
+        predictionPub3.publish(predicted_state3);
 
         // debug predicted state
-        std::cout << std::endl
-                  << "r_W: " << std::endl
-                  << visualEKF.x_predicted_.r_W << std::endl
-                  << "q_WO: " << std::endl
-                  << visualEKF.x_predicted_.q_WO.w() << visualEKF.x_predicted_.q_WO.vec() << std::endl
-                  << "v_O: " << std::endl
-                  << visualEKF.x_predicted_.v_O << std::endl
-                  << "omega_O: " << std::endl
-                  << visualEKF.x_predicted_.omega_O << std::endl
-                  << std::endl;
+        // std::cout << std::endl
+        //           << "r_W: " << std::endl
+        //           << visualEKF.x_predicted_.r_W << std::endl << detected_state.pose.pose.position
+                //   << "q_WO: " << std::endl
+                //   << visualEKF.x_predicted_.q_WO.w() << std::endl
+                //   << visualEKF.x_predicted_.q_WO.vec() << std::endl
+                //   << "v_O: " << std::endl
+                //   << visualEKF.x_predicted_.v_O << std::endl
+                //   << "omega_O: " << std::endl
+                //   << visualEKF.x_predicted_.omega_O << std::endl
+                //   << std::endl;
 
         // debug detected pose
         // std::cout << detected_state.header.stamp.sec + detected_state.header.stamp.nsec * 10e-9 << "," << detected_state.pose.pose.position.z << "," << T_WO(2, 3) << std::endl;
