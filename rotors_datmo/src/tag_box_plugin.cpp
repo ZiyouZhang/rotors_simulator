@@ -15,17 +15,26 @@ namespace gazebo
         updateConnection = event::Events::ConnectWorldUpdateBegin(std::bind(&TagBoxPlugin::OnUpdate, this));
 
         posePub = nh.advertise<nav_msgs::Odometry>("/tag_box_pose_ground_truth", 1);
+
+        model->SetGravityMode(false);
     }
 
     void TagBoxPlugin::OnUpdate()
     {
         msg.header.stamp = ros::Time::now();
-        // Apply a small linear velocity to the model.
-        if (model->WorldPose().Pos().Z() < 0.3)
-            model->SetLinearVel(ignition::math::Vector3d(0.0, 0.0, 4));
-            // model->SetWorldPose(ignition::math::Pose3d(2.0, -0.5, 2.5, 0.0, 0.0, 0.0));
-
-        // model->SetLinearVel(ignition::math::Vector3d(0.05, 0.05, 0.001));
+        
+        if (!initialised && nh.hasParam("/start_motion"))
+        {
+            bool startMotion = false;
+            nh.getParam("/start_motion", startMotion);
+            if (startMotion)
+            {
+                initialised = true;
+                model->SetGravityMode(true);
+                model->SetAngularVel(ignition::math::Vector3d(0.1, 0.0, 0.0));
+                model->SetLinearVel(ignition::math::Vector3d(-0.1, 0.0, 0.0));
+            }
+        }
 
         // Publish pose message
         msg.pose.pose.position.x = model->WorldPose().Pos().X();

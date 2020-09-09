@@ -11,7 +11,7 @@ struct ObjectState
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     double mass;
-    uint64_t timestamp;                  // Time stamp in seconds.
+    double timestamp;                  // Time stamp in seconds.
     Eigen::Vector3d r_W;                 // The position relative to the W frame.
     Eigen::Quaterniond q_WO;             // The quaternion of rotation W-O.
     Eigen::Vector3d v_O;                 // The velocity expressed in object frame.
@@ -22,7 +22,7 @@ struct ObjectState
 struct ObjectStateDerivative
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    uint64_t timestamp;          // Time stamp in seconds.
+    double timestamp;          // Time stamp in seconds.
     Eigen::Vector3d r_W_dot;     // The position relative to the W frame.
     Eigen::Quaterniond q_WO_dot; // The quaternion of rotation W-O.
     Eigen::Vector3d v_O_dot;     // The velocity expressed in object frame.
@@ -32,7 +32,7 @@ struct ObjectStateDerivative
 struct ApriltagMeasurement
 {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-    uint64_t timestamp;      // Time stamp in seconds.
+    double timestamp;      // Time stamp in seconds.
     Eigen::Vector3d r_W;     // The position relative to the W frame.
     Eigen::Quaterniond q_WO; // The quaternion of rotation W-O.
 };
@@ -44,11 +44,9 @@ public:
     VisualEKF();
     ~VisualEKF();
 
-    bool initialise(ros::Time rosTimeStamp,
-                    const ObjectState &x0,
-                    const Eigen::Matrix<double, 13, 13> &P0);
+    bool isInitialsed();
 
-    bool linearise();
+    bool initialise(const ObjectState initialState);
 
     bool predict(const double dt);
 
@@ -62,6 +60,7 @@ public:
     ObjectStateDerivative calcStateDerivative(const ObjectState &state);
 
     bool calcJacobian(const ObjectState &state,
+                      const double &dt,
                       Eigen::Matrix<double, 13, 13> &jacobian);
 
 private:
@@ -69,11 +68,10 @@ private:
     ObjectState x_predicted_;
     ObjectState x_propagated_;
 
+    bool initialised = false;
+
     ros::Time last_update_time_;
     uint64_t delta_t_;
-
-    ApriltagMeasurement lastApriltagMeasurement;
-    ApriltagMeasurement currentApriltagMeasurement;
 
     Eigen::Matrix<double, 13, 13> P_;
     Eigen::Matrix<double, 13, 13> jacobian;
@@ -83,8 +81,8 @@ private:
     double sigma_c_q_WO = 1.0e-3;    // 0.001 for quoternion error
     double sigma_c_v_O = 5.0e-2;     // 0.05 velocity error
     double sigma_c_omega_O = 5.0e-4; // 5e-4, amgular velocity error
-    double sigma_z_r_W = 0.05; // 0.05 meter for pose measurement error
-    double sigma_z_q_WO = 0.01; // 0.001 for quaternion measurement error
+    double sigma_z_r_W = 0.05;       // 0.05 meter for pose measurement error
+    double sigma_z_q_WO = 0.01;      // 0.001 for quaternion measurement error
 
     friend class PoseDetector;
 };

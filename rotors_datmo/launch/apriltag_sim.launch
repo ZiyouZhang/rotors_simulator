@@ -57,5 +57,5 @@
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rotors_datmo)/rviz/april_tag_detection.rviz" />
   <node name="apriltag_detection" pkg="rotors_datmo" type="apriltag_detection_node" output="screen"/>
-  <node name="rosbag_record_data" pkg="rosbag" type="record" args="-o /home/ziyou/catkin_ws/src/rotors_simulator/rotors_datmo/bag/data.bag /detected_tag_box_pose /predicted_object_state /predicted_object_state2 /predicted_object_state3 /tag_box_pose_ground_truth" output="screen"/>
+  <node name="rosbag_record_data" pkg="rosbag" type="record" args="-o /home/ziyou/catkin_ws/src/rotors_simulator/rotors_datmo/bag/data.bag /detected_object_state /updated_object_state /predicted_object_state /tag_box_pose_ground_truth" output="screen"/>
 </launch>

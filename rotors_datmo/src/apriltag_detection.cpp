@@ -29,13 +29,16 @@ static const std::string OPENCV_WINDOW = "Image window";
 
 PoseDetector::PoseDetector() : it(nh)
 {
+    nh.setParam("/start_motion", false);
+
     // Subscrive to input video feed and publish output video feed
     imageSub = it.subscribeCamera("/firefly/camera_nadir/image_raw", 10, &PoseDetector::imageCallBack, this);
     imagePub = it.advertise("/image_converter/output_video", 10);
     predictionPub = nh.advertise<nav_msgs::Odometry>("/predicted_object_state", 10);
-    predictionPub2 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state2", 1);
-    predictionPub3 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state3", 1);
-    detectionPub = nh.advertise<nav_msgs::Odometry>("/detected_tag_box_pose", 10);
+    predictionPub2 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state2", 10);
+    predictionPub3 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state3", 10);
+    detectionPub = nh.advertise<nav_msgs::Odometry>("/detected_object_state", 10);
+    updatePub = nh.advertise<nav_msgs::Odometry>("/updated_object_state", 10);
 
     // Initialise new cv window
     cv::namedWindow(OPENCV_WINDOW);
@@ -45,20 +48,23 @@ PoseDetector::PoseDetector() : it(nh)
     tf = tag36h11_create();
     apriltag_detector_add_family(td, tf);
 
+    // double K[9], fx_value, fy_value, cx_value, cy_value;
+    // nh.getParam("/firefly/camera_nadir/camera_info/K", K);
+    // // nh.getParam("/firefly/camera_nadir/camera_info/K[2]", fy_value);
+    // // nh.getParam("/firefly/camera_nadir/camera_info/K[4]", cx_value);
+    // // nh.getParam("/firefly/camera_nadir/camera_info/K[5]", cy_value);
+    // fx_value = K[0];
+    // fy_value = K[2];
+    // cx_value = K[4];
+    // cy_value = K[5];
+
+    // std::cout << fx_value << std::endl
+    //           << fy_value << std::endl
+    //           << cx_value << std::endl
+    //           << cy_value << std::endl
+    //           << std::endl;
+
     // Initialse camera info
-
-    // std_msgs::Float64 fx_value, fy_value, cx_value, cy_value;
-    // nh.getParam("/firefly/camera_nadir/camera_info/K[0]", fx_value);
-    // nh.getParam("/firefly/camera_nadir/camera_info/K[2]", fy_value);
-    // nh.getParam("/firefly/camera_nadir/camera_info/K[4]", cx_value);
-    // nh.getParam("/firefly/camera_nadir/camera_info/K[5]", cy_value);
-
-    // info.tagsize = 0.4;
-    // info.fx = static_cast<double>(fx_value);
-    // info.fy = static_cast<double>(fy_value);
-    // info.cx = static_cast<double>(cx_value);
-    // info.cy = static_cast<double>(cy_value);
-
     info.tagsize = 0.4;
     info.fx = 554.3827128226441;
     info.fy = 554.3827128226441;
@@ -70,10 +76,6 @@ PoseDetector::PoseDetector() : it(nh)
         0, 0, -1, 0,
         1, 0, 0, 0.25,
         0, 0, 0, 1;
-
-    visualEKF.x_.inertia << 0.5 / 3, 0, 0,
-        0, 0.5 / 3, 0,
-        0, 0, 0.5 / 3;
 }
 
 PoseDetector::~PoseDetector()
@@ -90,18 +92,18 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
     nav_msgs::Odometry predicted_state;
     nav_msgs::Odometry predicted_state2;
     nav_msgs::Odometry predicted_state3;
+    nav_msgs::Odometry updated_state;
 
-    predicted_state.header.frame_id = "/predicted_tag_box";
-    predicted_state.header.stamp = ros::Time::now() + ros::Duration(1.0 / 60);
+    ros::Time currentTime = ros::Time::now();
+
+    detected_state.header.frame_id = "/detected_tag_box";
+    detected_state.header.stamp = currentTime;
 
     predicted_state2.header.frame_id = "/predicted_tag_box2";
-    predicted_state2.header.stamp = ros::Time::now() + ros::Duration(2.0 / 60);
+    predicted_state2.header.stamp = currentTime + ros::Duration(2.0 / 30);
 
     predicted_state3.header.frame_id = "/predicted_tag_box3";
-    predicted_state3.header.stamp = ros::Time::now() + ros::Duration(3.0 / 60);
-
-    visualEKF.x_.timestamp = ros::Time::now().toSec();
-    visualEKF.x_predicted_.timestamp = (ros::Time::now() + ros::Duration(1.0 / 60)).toSec();
+    predicted_state3.header.stamp = currentTime + ros::Duration(3.0 / 30);
 
     cv_bridge::CvImagePtr cv_ptr;
     try
@@ -127,36 +129,35 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         apriltag_detection_t *det;
         zarray_get(detections, i, &det);
 
-        line(cv_ptr->image, cv::Point(det->p[0][0], det->p[0][1]),
-             cv::Point(det->p[1][0], det->p[1][1]),
-             cv::Scalar(0, 0xff, 0), 2);
-        line(cv_ptr->image, cv::Point(det->p[0][0], det->p[0][1]),
-             cv::Point(det->p[3][0], det->p[3][1]),
-             cv::Scalar(0, 0, 0xff), 2);
-        line(cv_ptr->image, cv::Point(det->p[1][0], det->p[1][1]),
-             cv::Point(det->p[2][0], det->p[2][1]),
-             cv::Scalar(0xff, 0, 0), 2);
-        line(cv_ptr->image, cv::Point(det->p[2][0], det->p[2][1]),
-             cv::Point(det->p[3][0], det->p[3][1]),
-             cv::Scalar(0xff, 0, 0), 2);
+        // Display the detacted tag using cvs
 
-        std::stringstream ss;
-        ss << det->id;
-        cv::String text = ss.str();
-        int fontface = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
-        double fontscale = 1.0;
-        int baseline;
-        cv::Size textsize = getTextSize(text, fontface, fontscale, 2,
-                                        &baseline);
-        putText(cv_ptr->image, text, cv::Point(det->c[0] - textsize.width / 2, det->c[1] + textsize.height / 2),
-                fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
+        // line(cv_ptr->image, cv::Point(det->p[0][0], det->p[0][1]),
+        //      cv::Point(det->p[1][0], det->p[1][1]),
+        //      cv::Scalar(0, 0xff, 0), 2);
+        // line(cv_ptr->image, cv::Point(det->p[0][0], det->p[0][1]),
+        //      cv::Point(det->p[3][0], det->p[3][1]),
+        //      cv::Scalar(0, 0, 0xff), 2);
+        // line(cv_ptr->image, cv::Point(det->p[1][0], det->p[1][1]),
+        //      cv::Point(det->p[2][0], det->p[2][1]),
+        //      cv::Scalar(0xff, 0, 0), 2);
+        // line(cv_ptr->image, cv::Point(det->p[2][0], det->p[2][1]),
+        //      cv::Point(det->p[3][0], det->p[3][1]),
+        //      cv::Scalar(0xff, 0, 0), 2);
+
+        // std::stringstream ss;
+        // ss << det->id;
+        // cv::String text = ss.str();
+        // int fontface = cv::FONT_HERSHEY_SCRIPT_SIMPLEX;
+        // double fontscale = 1.0;
+        // int baseline;
+        // cv::Size textsize = getTextSize(text, fontface, fontscale, 2,
+        //                                 &baseline);
+        // putText(cv_ptr->image, text, cv::Point(det->c[0] - textsize.width / 2, det->c[1] + textsize.height / 2),
+        //         fontface, fontscale, cv::Scalar(0xff, 0x99, 0), 2);
 
         // First create an apriltag_detection_info_t struct using known parameters.
         info.det = det;
         double err = estimate_tag_pose(&info, &pose);
-
-        detected_state.header.frame_id = "/detected_tag_box";
-        detected_state.header.stamp = ros::Time::now();
 
         Eigen::Matrix4d T_CT;
         T_CT << pose.R->data[0], pose.R->data[1], pose.R->data[2], pose.t->data[0],
@@ -164,6 +165,7 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
             pose.R->data[6], pose.R->data[7], pose.R->data[8], pose.t->data[2],
             0, 0, 0, 1;
 
+        // obtain the T_WC
         tf::StampedTransform transform_WC;
         listener.lookupTransform("/world", "/firefly/camera_nadir_optical_link", ros::Time(0), transform_WC);
         Eigen::Matrix4d T_WC;
@@ -197,83 +199,176 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
 
         listener.lookupTwist("/tag_box", "/world", ros::Time(0), ros::Duration(0.1), currentTwist);
         detected_state.twist.twist = currentTwist;
-
         detectionPub.publish(detected_state);
 
-        visualEKF.x_.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
-        Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
-                                           quaternion_WO.getAxis().getX(),
-                                           quaternion_WO.getAxis().getY(),
-                                           quaternion_WO.getAxis().getZ());
-        visualEKF.x_.q_WO = eigen_quaterion;
-        visualEKF.x_.v_O = Eigen::Vector3d(currentTwist.linear.x,
-                                           currentTwist.linear.y,
-                                           currentTwist.linear.z);
-        visualEKF.x_.omega_O = Eigen::Vector3d(currentTwist.angular.x,
-                                               currentTwist.angular.y,
-                                               currentTwist.angular.z);
-        visualEKF.predict(1.0 / 60);
-        predicted_state.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
-        predicted_state.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
-        predicted_state.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
-        predicted_state.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
-        predicted_state.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
-        predicted_state.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
-        predicted_state.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
-        predicted_state.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
-        predicted_state.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
-        predicted_state.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
-        predicted_state.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
-        predicted_state.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
-        predicted_state.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
-        predictionPub.publish(predicted_state);
+        if (!visualEKF.isInitialsed())
+        {
+            ObjectState initialState;
+            initialState.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
+            Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
+                                               quaternion_WO.getAxis().getX(),
+                                               quaternion_WO.getAxis().getY(),
+                                               quaternion_WO.getAxis().getZ());
+            initialState.q_WO = eigen_quaterion;
+            initialState.v_O = Eigen::Vector3d(currentTwist.linear.x,
+                                               currentTwist.linear.y,
+                                               currentTwist.linear.z);
+            initialState.omega_O = Eigen::Vector3d(currentTwist.angular.x,
+                                                   currentTwist.angular.y,
+                                                   currentTwist.angular.z);
+            initialState.timestamp = currentTime.toSec();
+            initialState.inertia << 0.5 / 12, 0, 0,
+                0, 0.5 / 12, 0,
+                0, 0, 0.5 / 12;
 
-        visualEKF.predict(2.0 / 60);
-        visualEKF.x_predicted_.timestamp += 2.0 / 60;
-        predicted_state2.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
-        predicted_state2.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
-        predicted_state2.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
-        predicted_state2.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
-        predicted_state2.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
-        predicted_state2.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
-        predicted_state2.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
-        predicted_state2.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
-        predicted_state2.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
-        predicted_state2.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
-        predicted_state2.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
-        predicted_state2.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
-        predicted_state2.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
-        predictionPub2.publish(predicted_state2);
+            visualEKF.initialise(initialState);
 
-        visualEKF.predict(3.0 / 60);
-        visualEKF.x_predicted_.timestamp += 3.0 / 60;
-        predicted_state3.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
-        predicted_state3.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
-        predicted_state3.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
-        predicted_state3.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
-        predicted_state3.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
-        predicted_state3.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
-        predicted_state3.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
-        predicted_state3.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
-        predicted_state3.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
-        predicted_state3.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
-        predicted_state3.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
-        predicted_state3.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
-        predicted_state3.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
-        predictionPub3.publish(predicted_state3);
+            // publish initial state
+            updated_state.header.frame_id = "/updated_tag_box";
+            updated_state.header.stamp = currentTime;
+            updated_state.pose.pose.position.x = visualEKF.x_.r_W.x();
+            updated_state.pose.pose.position.y = visualEKF.x_.r_W.y();
+            updated_state.pose.pose.position.z = visualEKF.x_.r_W.z();
+            updated_state.pose.pose.orientation.w = visualEKF.x_.q_WO.w();
+            updated_state.pose.pose.orientation.x = visualEKF.x_.q_WO.x();
+            updated_state.pose.pose.orientation.y = visualEKF.x_.q_WO.y();
+            updated_state.pose.pose.orientation.z = visualEKF.x_.q_WO.z();
+            updated_state.twist.twist.linear.x = visualEKF.x_.v_O.x();
+            updated_state.twist.twist.linear.y = visualEKF.x_.v_O.y();
+            updated_state.twist.twist.linear.z = visualEKF.x_.v_O.z();
+            updated_state.twist.twist.angular.x = visualEKF.x_.omega_O.x();
+            updated_state.twist.twist.angular.y = visualEKF.x_.omega_O.y();
+            updated_state.twist.twist.angular.z = visualEKF.x_.omega_O.z();
+            updatePub.publish(updated_state);
 
-        // debug predicted state
-        // std::cout << std::endl
-        //           << "r_W: " << std::endl
-        //           << visualEKF.x_predicted_.r_W << std::endl << detected_state.pose.pose.position
-                //   << "q_WO: " << std::endl
-                //   << visualEKF.x_predicted_.q_WO.w() << std::endl
-                //   << visualEKF.x_predicted_.q_WO.vec() << std::endl
-                //   << "v_O: " << std::endl
-                //   << visualEKF.x_predicted_.v_O << std::endl
-                //   << "omega_O: " << std::endl
-                //   << visualEKF.x_predicted_.omega_O << std::endl
-                //   << std::endl;
+            // notify other process to start motion
+            nh.setParam("/start_motion", true);
+
+            // debug initial state
+            // std::cout << std::endl
+            //           << "r_W: " << std::endl
+            //           << visualEKF.x_.r_W << std::endl
+            //           << "q_WO: " << std::endl
+            //           << visualEKF.x_.q_WO.w() << std::endl
+            //           << visualEKF.x_.q_WO.vec() << std::endl
+            //           << "v_O: " << std::endl
+            //           << visualEKF.x_.v_O << std::endl
+            //           << "omega_O: " << std::endl
+            //           << visualEKF.x_.omega_O << std::endl
+            //           << std::endl;
+        }
+        else
+        {
+            double dt = currentTime.toSec() - lastMeasurementTime;
+            // std::cout << dt << std::endl;
+            visualEKF.x_.timestamp = currentTime.toSec();
+            visualEKF.x_predicted_.timestamp = currentTime.toSec();
+
+            visualEKF.predict(1.0 / 30);
+            predicted_state.header.frame_id = "/predicted_tag_box";
+            predicted_state.header.stamp = currentTime;
+            predicted_state.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
+            predicted_state.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
+            predicted_state.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
+            predicted_state.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
+            predicted_state.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
+            predicted_state.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
+            predicted_state.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
+            predicted_state.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
+            predicted_state.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
+            predicted_state.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
+            predicted_state.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
+            predicted_state.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
+            predicted_state.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
+            predictionPub.publish(predicted_state);
+
+            // debug predicted state
+            // std::cout << std::endl
+            //           << "r_W: " << std::endl
+            //           << visualEKF.x_predicted_.r_W << std::endl << detected_state.pose.pose.position
+            //   << "q_WO: " << std::endl
+            //   << visualEKF.x_predicted_.q_WO.w() << std::endl
+            //   << visualEKF.x_predicted_.q_WO.vec() << std::endl
+            //   << "v_O: " << std::endl
+            //   << visualEKF.x_predicted_.v_O << std::endl
+            //   << "omega_O: " << std::endl
+            //   << visualEKF.x_predicted_.omega_O << std::endl
+            //   << std::endl;
+
+            ApriltagMeasurement measurement;
+            measurement.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
+
+            Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
+                                               quaternion_WO.getAxis().getX(),
+                                               quaternion_WO.getAxis().getY(),
+                                               quaternion_WO.getAxis().getZ());
+            measurement.q_WO = eigen_quaterion;
+            visualEKF.update(measurement);
+
+            updated_state.header.frame_id = "/updated_tag_box";
+            updated_state.header.stamp = currentTime;
+            updated_state.pose.pose.position.x = visualEKF.x_.r_W.x();
+            updated_state.pose.pose.position.y = visualEKF.x_.r_W.y();
+            updated_state.pose.pose.position.z = visualEKF.x_.r_W.z();
+            updated_state.pose.pose.orientation.w = visualEKF.x_.q_WO.w();
+            updated_state.pose.pose.orientation.x = visualEKF.x_.q_WO.x();
+            updated_state.pose.pose.orientation.y = visualEKF.x_.q_WO.y();
+            updated_state.pose.pose.orientation.z = visualEKF.x_.q_WO.z();
+            updated_state.twist.twist.linear.x = visualEKF.x_.v_O.x();
+            updated_state.twist.twist.linear.y = visualEKF.x_.v_O.y();
+            updated_state.twist.twist.linear.z = visualEKF.x_.v_O.z();
+            updated_state.twist.twist.angular.x = visualEKF.x_.omega_O.x();
+            updated_state.twist.twist.angular.y = visualEKF.x_.omega_O.y();
+            updated_state.twist.twist.angular.z = visualEKF.x_.omega_O.z();
+            updatePub.publish(updated_state);
+        }
+
+        // visualEKF.x_.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
+        // Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
+        //                                    quaternion_WO.getAxis().getX(),
+        //                                    quaternion_WO.getAxis().getY(),
+        //                                    quaternion_WO.getAxis().getZ());
+        // visualEKF.x_.q_WO = eigen_quaterion;
+        // visualEKF.x_.v_O = Eigen::Vector3d(currentTwist.linear.x,
+        //                                    currentTwist.linear.y,
+        //                                    currentTwist.linear.z);
+        // visualEKF.x_.omega_O = Eigen::Vector3d(currentTwist.angular.x,
+        //                                        currentTwist.angular.y,
+        //                                        currentTwist.angular.z);
+
+        // visualEKF.predict(2.0 / 30);
+        // visualEKF.x_predicted_.timestamp += 2.0 / 60;
+        // predicted_state2.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
+        // predicted_state2.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
+        // predicted_state2.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
+        // predicted_state2.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
+        // predicted_state2.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
+        // predicted_state2.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
+        // predicted_state2.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
+        // predicted_state2.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
+        // predicted_state2.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
+        // predicted_state2.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
+        // predicted_state2.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
+        // predicted_state2.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
+        // predicted_state2.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
+        // predictionPub2.publish(predicted_state2);
+
+        // visualEKF.predict(3.0 / 30);
+        // visualEKF.x_predicted_.timestamp += 3.0 / 60;
+        // predicted_state3.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
+        // predicted_state3.pose.pose.position.y = visualEKF.x_predicted_.r_W.y();
+        // predicted_state3.pose.pose.position.z = visualEKF.x_predicted_.r_W.z();
+        // predicted_state3.pose.pose.orientation.w = visualEKF.x_predicted_.q_WO.w();
+        // predicted_state3.pose.pose.orientation.x = visualEKF.x_predicted_.q_WO.x();
+        // predicted_state3.pose.pose.orientation.y = visualEKF.x_predicted_.q_WO.y();
+        // predicted_state3.pose.pose.orientation.z = visualEKF.x_predicted_.q_WO.z();
+        // predicted_state3.twist.twist.linear.x = visualEKF.x_predicted_.v_O.x();
+        // predicted_state3.twist.twist.linear.y = visualEKF.x_predicted_.v_O.y();
+        // predicted_state3.twist.twist.linear.z = visualEKF.x_predicted_.v_O.z();
+        // predicted_state3.twist.twist.angular.x = visualEKF.x_predicted_.omega_O.x();
+        // predicted_state3.twist.twist.angular.y = visualEKF.x_predicted_.omega_O.y();
+        // predicted_state3.twist.twist.angular.z = visualEKF.x_predicted_.omega_O.z();
+        // predictionPub3.publish(predicted_state3);
 
         // debug detected pose
         // std::cout << detected_state.header.stamp.sec + detected_state.header.stamp.nsec * 10e-9 << "," << detected_state.pose.pose.position.z << "," << T_WO(2, 3) << std::endl;
@@ -281,17 +376,14 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
 
     apriltag_detections_destroy(detections);
 
-    // apriltag_ros::AprilTagDetectionArray detections = tagDetector.detectTags(cv_ptr, camera_info);
-    // for (auto i : detections.detections) {
-    //     std::cout << i << std::endl;
-    // }
-
     // Update GUI Window
     // cv::imshow(OPENCV_WINDOW, cv_ptr->image);
     // cv::waitKey(3);
 
-    // Output modified video stream
     imagePub.publish(cv_ptr->toImageMsg());
+
+    // update the measurement time
+    lastMeasurementTime = currentTime.toSec();
 }
 
 int main(int argc, char **argv)

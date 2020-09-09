@@ -58,8 +58,9 @@
     <!-- Tag Box -->
     <include>
       <uri>model://tag_box</uri>
-      <pose>2.0 -0.5 1.2 0.0 0.0 0.0</pose>
+      <pose>3.0 -0.5 1.2 0.0 0.0 0.0</pose>
       <static>false</static>
+      
     </include>
 
     <!-- Cylinder -->
@@ -70,11 +71,11 @@
     </include>
 
     <!-- Depth Camera -->
-    <include>
+    <!-- <include>
       <uri>model://depth_camera</uri>
       <pose>1.0 1.0 1.0 0.0 0.0 0.0</pose>
       <static>true</static>
-    </include>
+    </include> -->
 
   </world>
 </sdf>

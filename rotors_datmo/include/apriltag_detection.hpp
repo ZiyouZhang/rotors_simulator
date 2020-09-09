@@ -26,6 +26,8 @@ public:
 private:
     ros::NodeHandle nh;
     ros::Publisher detectionPub;
+    ros::Publisher updatePub;
+
     ros::Publisher predictionPub;
     ros::Publisher predictionPub2;
     ros::Publisher predictionPub3;
@@ -48,8 +50,7 @@ private:
     Eigen::Matrix4d T_TO;
 
     VisualEKF visualEKF;
-    uint64_t lastImageTime;
-    uint64_t currentImageTime;
+    double lastMeasurementTime;
 };
 
 #endif // APRILTAG_DETECTION_H_
