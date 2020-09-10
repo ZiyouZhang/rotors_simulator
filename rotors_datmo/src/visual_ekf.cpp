@@ -5,22 +5,12 @@
 
 #include <ros/console.h>
 
-Eigen::Quaterniond operator*(const double a, const Eigen::Quaterniond b)
-{
-    Eigen::Quaterniond c;
-    c.w() = a * b.w();
-    c.vec() = a * b.vec();
-    if (c.w() + c.x() + c.y() + c.z() != 0)
-        c.normalize();
-    return c;
-}
-
 Eigen::Quaterniond operator+(const Eigen::Quaterniond q1, const Eigen::Quaterniond q2)
 {
     Eigen::Quaterniond q;
     q.w() = q1.w() + q2.w();
     q.vec() = q1.vec() + q2.vec();
-    if (q.w() + q.x() + q.y() + q.z() != 0)
+    if (q.w() + q.x() + q.y() + q.z() != 0.0)
         q.normalize();
     return q;
 }
@@ -30,9 +20,19 @@ Eigen::Quaterniond operator-(const Eigen::Quaterniond q1, const Eigen::Quaternio
     Eigen::Quaterniond q;
     q.w() = q1.w() - q2.w();
     q.vec() = q1.vec() - q2.vec();
-    if (q.w() + q.x() + q.y() + q.z() != 0)
+    if (q.w() + q.x() + q.y() + q.z() != 0.0)
         q.normalize();
     return q;
+}
+
+Eigen::Quaterniond operator*(const double a, const Eigen::Quaterniond b)
+{
+    Eigen::Quaterniond c;
+    c.w() = a * b.w();
+    c.vec() = a * b.vec();
+    if (c.w() + c.x() + c.y() + c.z() != 0)
+        c.normalize();
+    return c;
 }
 
 Eigen::Quaterniond operator*(const Eigen::Quaterniond q1, const Eigen::Quaterniond q2)
@@ -62,10 +62,10 @@ bool VisualEKF::initialise(const ObjectState initialState)
 {
     x_ = initialState;
 
-    P_.block<3, 3>(0, 0) *= 0.01 * 0.01;                   // 1 cm
-    P_.block<4, 4>(3, 3) *= 0.001 * 0.001;                 // quoternion error
-    P_.block<3, 3>(7, 7) *= 0.01 * 0.01;                   // 1 cm/s
-    P_.block<3, 3>(10, 10) *= (1.0 / 60.0) * (1.0 / 60.0); // 1 degree/sec
+    P_.block<3, 3>(0, 0) *= sigma_c_r_W * sigma_c_r_W;                   // 1 cm
+    P_.block<4, 4>(3, 3) *= sigma_c_q_WO * sigma_c_q_WO;                 // quoternion error
+    P_.block<3, 3>(7, 7) *= sigma_c_v_O * sigma_c_v_O;                   // 1 cm/s
+    P_.block<3, 3>(10, 10) *= sigma_c_omega_O * sigma_c_omega_O;         // 1 degree/sec
 
     initialised = true;
 
@@ -92,15 +92,15 @@ ObjectStateDerivative VisualEKF::calcStateDerivative(const ObjectState &state)
     temp.vec() = state.omega_O;
     if (temp.w() + temp.x() + temp.y() + temp.z() != 0)
         temp.normalize();
-    stateDerivative.q_WO_dot = 0.5 * state.q_WO * temp;
+    stateDerivative.q_WO_dot = 0.5 * (state.q_WO * temp);
 
     stateDerivative.v_O_dot = state.q_WO.toRotationMatrix().inverse() * Eigen::Vector3d(0.0, 0.0, -9.81) - state.omega_O.cross(state.v_O);
 
     stateDerivative.omega_O_dot = state.inertia.inverse() * (state.omega_O.cross(state.inertia * state.omega_O));
 
     // might be some implicit bug. Here it checks if there's nan in the vector
-    if (!((stateDerivative.omega_O_dot.array() == stateDerivative.omega_O_dot.array()).all()))
-        stateDerivative.omega_O_dot.setZero();
+    // if (!((stateDerivative.omega_O_dot.array() == stateDerivative.omega_O_dot.array()).all()))
+    //     stateDerivative.omega_O_dot.setZero();
 
     // std::cout << std::endl
     //           << "r_W_dot: " << std::endl
@@ -195,12 +195,14 @@ bool VisualEKF::stateTransition(const ObjectState &object_state_k_minus_1,
     return true;
 }
 
-bool VisualEKF::predict(const double dt)
+bool VisualEKF::predict(const double dt,
+                        const ObjectState &fromState,
+                        ObjectState &toState)
 {
     Eigen::Matrix<double, 13, 13> F;   // Jacobian
     Eigen::Matrix<double, 13, 13> LQL; // Linearised error
 
-    stateTransition(x_, x_predicted_, dt, F);
+    stateTransition(fromState, toState, dt, F);
 
     LQL.setZero();
     LQL.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * delta_t_ * sigma_c_r_W * sigma_c_r_W;
@@ -209,6 +211,8 @@ bool VisualEKF::predict(const double dt)
     LQL.block<3, 3>(10, 10) = Eigen::Matrix3d::Identity() * delta_t_ * sigma_c_omega_O * sigma_c_omega_O;
 
     P_ = F * P_ * F.transpose() + LQL;
+
+    // std::cout << "P: " << P_ << std::endl;
 
     return true;
 }
@@ -257,12 +261,12 @@ bool VisualEKF::update(const ApriltagMeasurement apriltagMeasurement)
     // std::cout << "delta: " << delta << std::endl;
 
     // update state
-    x_.r_W += delta.segment<3>(0);
-    x_.q_WO.coeffs() += delta.segment<4>(3);
+    x_.r_W = x_predicted_.r_W + delta.segment<3>(0);
+    x_.q_WO.coeffs() = x_predicted_.q_WO.coeffs() + delta.segment<4>(3);
     if (x_.q_WO.w() + x_.q_WO.x() + x_.q_WO.y() + x_.q_WO.z() != 0)
         x_.q_WO.normalize();
-    x_.v_O += delta.segment<3>(7);
-    x_.omega_O += delta.segment<3>(10);
+    x_.v_O = x_predicted_.v_O + delta.segment<3>(7);
+    x_.omega_O = x_predicted_.omega_O + delta.segment<3>(10);
 
     // update covariance
     P_ = (Eigen::Matrix<double, 13, 13>::Identity() - K * H) * P_;

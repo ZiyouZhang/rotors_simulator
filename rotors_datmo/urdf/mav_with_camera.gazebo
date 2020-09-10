@@ -27,7 +27,7 @@
     namespace="${namespace}"
     parent_link="${namespace}/base_link"
     camera_suffix="nadir"
-    frame_rate="90.0"
+    frame_rate="30.0"
     horizontal_fov="1.047"
     image_width="640"
     image_height="480"

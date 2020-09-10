@@ -31,8 +31,8 @@ namespace gazebo
             {
                 initialised = true;
                 model->SetGravityMode(true);
-                model->SetAngularVel(ignition::math::Vector3d(0.1, 0.0, 0.0));
-                model->SetLinearVel(ignition::math::Vector3d(-0.1, 0.0, 0.0));
+                model->SetLinearVel(ignition::math::Vector3d(-3.0, 0.0, 0.0));
+                model->SetAngularVel(ignition::math::Vector3d(1.5, 0.0, 0.0));
             }
         }
 

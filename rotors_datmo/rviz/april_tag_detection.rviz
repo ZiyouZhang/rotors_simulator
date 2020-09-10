@@ -76,13 +76,13 @@ Visualization Manager:
         detected_tag_box:
           Value: true
         firefly/base_link:
-          Value: false
+          Value: true
         firefly/base_link_inertia:
           Value: false
         firefly/camera_nadir_link:
           Value: false
         firefly/camera_nadir_optical_link:
-          Value: true
+          Value: false
         firefly/imu_link:
           Value: false
         firefly/imugt_link:
@@ -116,13 +116,14 @@ Visualization Manager:
       Show Names: true
       Tree:
         world:
+          detected_tag_box:
+            {}
           firefly/base_link:
             firefly/base_link_inertia:
               {}
             firefly/camera_nadir_link:
               firefly/camera_nadir_optical_link:
-                detected_tag_box:
-                  {}
+                {}
             firefly/imu_link:
               {}
             firefly/imugt_link:
@@ -192,10 +193,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.32979699969291687
+      Pitch: 0.32479697465896606
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.7504117488861084
+      Yaw: 2.8354108333587646
     Saved: ~
 Window Geometry:
   Camera:

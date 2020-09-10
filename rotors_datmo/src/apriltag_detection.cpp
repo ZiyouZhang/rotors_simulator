@@ -35,8 +35,8 @@ PoseDetector::PoseDetector() : it(nh)
     imageSub = it.subscribeCamera("/firefly/camera_nadir/image_raw", 10, &PoseDetector::imageCallBack, this);
     imagePub = it.advertise("/image_converter/output_video", 10);
     predictionPub = nh.advertise<nav_msgs::Odometry>("/predicted_object_state", 10);
-    predictionPub2 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state2", 10);
-    predictionPub3 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state3", 10);
+    // predictionPub2 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state2", 10);
+    // predictionPub3 = nh.advertise<nav_msgs::Odometry>("/predicted_object_state3", 10);
     detectionPub = nh.advertise<nav_msgs::Odometry>("/detected_object_state", 10);
     updatePub = nh.advertise<nav_msgs::Odometry>("/updated_object_state", 10);
 
@@ -99,11 +99,11 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
     detected_state.header.frame_id = "/detected_tag_box";
     detected_state.header.stamp = currentTime;
 
-    predicted_state2.header.frame_id = "/predicted_tag_box2";
-    predicted_state2.header.stamp = currentTime + ros::Duration(2.0 / 30);
+    // predicted_state2.header.frame_id = "/predicted_tag_box2";
+    // predicted_state2.header.stamp = currentTime + ros::Duration(2.0 / 30);
 
-    predicted_state3.header.frame_id = "/predicted_tag_box3";
-    predicted_state3.header.stamp = currentTime + ros::Duration(3.0 / 30);
+    // predicted_state3.header.frame_id = "/predicted_tag_box3";
+    // predicted_state3.header.stamp = currentTime + ros::Duration(3.0 / 30);
 
     cv_bridge::CvImagePtr cv_ptr;
     try
@@ -197,29 +197,25 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         quaternion_WO.normalize();
         tf::quaternionTFToMsg(quaternion_WO, detected_state.pose.pose.orientation);
 
-        listener.lookupTwist("/tag_box", "/world", ros::Time(0), ros::Duration(0.1), currentTwist);
-        detected_state.twist.twist = currentTwist;
+        // listener.lookupTwist("/tag_box", "/world", ros::Time(0), ros::Duration(0.1), currentTwist);
+        // detected_state.twist.twist = currentTwist;
         detectionPub.publish(detected_state);
 
         if (!visualEKF.isInitialsed())
         {
             ObjectState initialState;
-            initialState.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
-            Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
-                                               quaternion_WO.getAxis().getX(),
-                                               quaternion_WO.getAxis().getY(),
-                                               quaternion_WO.getAxis().getZ());
+            // initialState.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
+            // Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
+            //                                    quaternion_WO.getAxis().getX(),
+            //                                    quaternion_WO.getAxis().getY(),
+            //                                    quaternion_WO.getAxis().getZ());
+
+            initialState.r_W = Eigen::Vector3d(4.0, -0.5, 1.5);
+            Eigen::Quaterniond eigen_quaterion(1.0, 0.0, 0.0, 0.0);
             initialState.q_WO = eigen_quaterion;
-            initialState.v_O = Eigen::Vector3d(currentTwist.linear.x,
-                                               currentTwist.linear.y,
-                                               currentTwist.linear.z);
-            initialState.omega_O = Eigen::Vector3d(currentTwist.angular.x,
-                                                   currentTwist.angular.y,
-                                                   currentTwist.angular.z);
+            initialState.v_O = Eigen::Vector3d(-3.0, 0.0, 0.0);
+            initialState.omega_O = Eigen::Vector3d(1.5, 0.0, 0.0);
             initialState.timestamp = currentTime.toSec();
-            initialState.inertia << 0.5 / 12, 0, 0,
-                0, 0.5 / 12, 0,
-                0, 0, 0.5 / 12;
 
             visualEKF.initialise(initialState);
 
@@ -264,7 +260,13 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
             visualEKF.x_.timestamp = currentTime.toSec();
             visualEKF.x_predicted_.timestamp = currentTime.toSec();
 
-            visualEKF.predict(1.0 / 30);
+            visualEKF.predict(dt/3, visualEKF.x_, visualEKF.x_temp_);
+            // std::cout << "1"  << std::endl << visualEKF.x_temp_.v_O << std::endl;
+            visualEKF.predict(dt/3, visualEKF.x_temp_, visualEKF.x_temp_);
+            // std::cout << "2"  << std::endl << visualEKF.x_temp_.v_O << std::endl;
+            visualEKF.predict(dt/3, visualEKF.x_temp_, visualEKF.x_predicted_);
+            // std::cout << "3"  << std::endl << visualEKF.x_temp_.v_O << std::endl;
+
             predicted_state.header.frame_id = "/predicted_tag_box";
             predicted_state.header.stamp = currentTime;
             predicted_state.pose.pose.position.x = visualEKF.x_predicted_.r_W.x();
@@ -303,6 +305,7 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
                                                quaternion_WO.getAxis().getY(),
                                                quaternion_WO.getAxis().getZ());
             measurement.q_WO = eigen_quaterion;
+            // visualEKF.x_ = visualEKF.x_predicted_;
             visualEKF.update(measurement);
 
             updated_state.header.frame_id = "/updated_tag_box";
@@ -321,7 +324,22 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
             updated_state.twist.twist.angular.y = visualEKF.x_.omega_O.y();
             updated_state.twist.twist.angular.z = visualEKF.x_.omega_O.z();
             updatePub.publish(updated_state);
+
+            // std::cout << "Detection induced latency: " <<(ros::Time::now().toSec() - currentTime.toSec())*1000 << " ms" << std::endl;
         }
+
+        // debug update state
+        // std::cout << std::endl
+        //           << "r_W: " << std::endl
+        //           << visualEKF.x_.r_W << std::endl
+        //           << "q_WO: " << std::endl
+        //           << visualEKF.x_.q_WO.w() << std::endl
+        //           << visualEKF.x_.q_WO.vec() << std::endl
+        //           << "v_O: " << std::endl
+        //           << visualEKF.x_.v_O << std::endl
+        //           << "omega_O: " << std::endl
+        //           << visualEKF.x_.omega_O << std::endl
+        //           << std::endl;
 
         // visualEKF.x_.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
         // Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
@@ -384,6 +402,9 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
 
     // update the measurement time
     lastMeasurementTime = currentTime.toSec();
+
+    if (currentTime.toSec() > 3.5)
+        ros::shutdown();
 }
 
 int main(int argc, char **argv)
