@@ -6,6 +6,7 @@
 #include <tf/LinearMath/Matrix3x3.h>
 #include <tf/transform_broadcaster.h>
 #include <image_transport/image_transport.h>
+#include <nav_msgs/Odometry.h>
 
 #include <Eigen/Dense>
 
@@ -50,6 +51,12 @@ private:
     Eigen::Matrix4d T_TO;
 
     VisualEKF visualEKF;
+    bool detectionInitialised = false;
+    nav_msgs::Odometry predicted_state;
+    nav_msgs::Odometry updated_state;
+    nav_msgs::Odometry detected_state;
+    // nav_msgs::Odometry lastDetectedState;
+    
     double lastMeasurementTime;
 };
 

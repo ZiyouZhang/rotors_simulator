@@ -21,7 +21,7 @@ namespace gazebo
 
     void TagBoxPlugin::OnUpdate()
     {
-        msg.header.stamp = ros::Time::now();
+        ros::Time currentTime = ros::Time::now();
         
         if (!initialised && nh.hasParam("/start_motion"))
         {
@@ -31,12 +31,13 @@ namespace gazebo
             {
                 initialised = true;
                 model->SetGravityMode(true);
-                model->SetLinearVel(ignition::math::Vector3d(-3.0, 0.0, 0.0));
-                model->SetAngularVel(ignition::math::Vector3d(1.5, 0.0, 0.0));
+                model->SetLinearVel(ignition::math::Vector3d(-4.0, 0.0, 0.0));
+                model->SetAngularVel(ignition::math::Vector3d(1.0, 0.0, 0.0));
             }
         }
 
         // Publish pose message
+        msg.header.stamp = currentTime;
         msg.pose.pose.position.x = model->WorldPose().Pos().X();
         msg.pose.pose.position.y = model->WorldPose().Pos().Y();
         msg.pose.pose.position.z = model->WorldPose().Pos().Z();
@@ -61,7 +62,7 @@ namespace gazebo
                                              model->WorldPose().Rot().Y(),
                                              model->WorldPose().Rot().Z(),
                                              model->WorldPose().Rot().W()));
-        br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", model->GetName()));
+        br.sendTransform(tf::StampedTransform(transform, currentTime, "world", model->GetName()));
     }
 
     // Register this plugin with the simulator

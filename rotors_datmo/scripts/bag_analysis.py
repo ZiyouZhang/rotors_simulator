@@ -5,9 +5,16 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import csv
+import glob
+import os
 from tf.transformations import euler_from_quaternion
 
-filename = "/home/ziyou/Desktop/bag/" + sys.argv[1] + ".bag"
+if (len(sys.argv) > 1):
+    filename = "../bag/" + sys.argv[1] + ".bag"
+else:
+    list_of_files = glob.glob('../bag/*')
+    latest_file = max(list_of_files, key=os.path.getctime)
+    filename = latest_file
 
 def get_rpy(msg):
 
@@ -16,6 +23,7 @@ def get_rpy(msg):
                                               msg.pose.pose.orientation.z,
                                               msg.pose.pose.orientation.w])
     return roll, pitch, yaw
+
 
 class topic_data:
 
@@ -44,7 +52,8 @@ class topic_data:
     def get_data_from_bag(self, filename):
         with rosbag.Bag(filename) as bag:
             for topic, msg, t in bag.read_messages(topics=[self.topic_name]):
-                self.data["time"].append(t.secs + t.nsecs/1e9)
+                self.data["time"].append(
+                    msg.header.stamp.secs + msg.header.stamp.nsecs/1e9)
                 self.data["r_x"].append(msg.pose.pose.position.x)
                 self.data["r_y"].append(msg.pose.pose.position.y)
                 self.data["r_z"].append(msg.pose.pose.position.z)
@@ -62,6 +71,36 @@ class topic_data:
                 self.data["omega_y"].append(msg.twist.twist.angular.y)
                 self.data["omega_z"].append(msg.twist.twist.angular.z)
 
+    def calculate_velocities(self):
+        self.data["v_x"] = []
+        self.data["v_y"] = []
+        self.data["v_z"] = []
+        self.data["omega_x"] = []
+        self.data["omega_y"] = []
+        self.data["omega_z"] = []
+
+        self.data["v_x"].append(0)
+        self.data["v_y"].append(0)
+        self.data["v_z"].append(0)
+        self.data["omega_x"].append(0)
+        self.data["omega_y"].append(0)
+        self.data["omega_z"].append(0)
+
+        for i in range(len(self.data["time"])-1):
+            self.data["v_x"].append((self.data["r_x"][i+1] - self.data["r_x"]
+                                     [i]) / (self.data["time"][i+1] - self.data["time"][i]))
+            self.data["v_y"].append((self.data["r_y"][i+1] - self.data["r_y"]
+                                     [i]) / (self.data["time"][i+1] - self.data["time"][i]))
+            self.data["v_z"].append((self.data["r_z"][i+1] - self.data["r_z"]
+                                     [i]) / (self.data["time"][i+1] - self.data["time"][i]))
+
+            self.data["omega_x"].append((self.data["roll"][i+1] - self.data["roll"][i]) / (
+                self.data["time"][i+1] - self.data["time"][i]))
+            self.data["omega_y"].append((self.data["pitch"][i+1] - self.data["pitch"][i]) / (
+                self.data["time"][i+1] - self.data["time"][i]))
+            self.data["omega_z"].append(
+                (self.data["yaw"][i+1] - self.data["yaw"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
+
 
 truth = topic_data('/tag_box_pose_ground_truth')
 detection = topic_data('/detected_object_state')
@@ -72,6 +111,69 @@ truth.get_data_from_bag(filename)
 detection.get_data_from_bag(filename)
 predicted.get_data_from_bag(filename)
 ekf.get_data_from_bag(filename)
+
+detection.calculate_velocities()
+
+
+def compare_plot(attr, include_detected):
+    plt.plot(truth.data['time'], truth.data[attr],  'r.-', label='truth')
+    if include_detected:
+        plt.plot(detection.data['time'],
+                 detection.data[attr], 'g.-', label='detected')
+    plt.plot(predicted.data['time'],
+             predicted.data[attr], 'y.-', label='predicted')
+    plt.plot(ekf.data['time'], ekf.data[attr], 'b.-', label='ekf')
+    plt.title(attr)
+    plt.legend()
+    plt.xlim(2, 3.2)
+    plt.show()
+    # plt.savefig(attr, dpi=400)
+    plt.cla()
+
+# compare_plot('r_x', True)
+# compare_plot('r_y', True)
+# compare_plot('r_z', True)
+# compare_plot('q_x', True)
+# compare_plot('q_y', True)
+# compare_plot('q_z', True)
+# compare_plot('q_w', True)
+# compare_plot('roll', True)
+# compare_plot('pitch', True)
+# compare_plot('yaw', True)
+# compare_plot('v_x', False)
+# compare_plot('v_y', False)
+# compare_plot('v_z', False)
+# compare_plot('omega_x', False)
+# compare_plot('omega_y', False)
+# compare_plot('omega_z', False)
+
+def generate_plot(ax, attr, include_detected):
+    ax.plot(truth.data['time'], truth.data[attr],  'r.-', label='truth')
+    if include_detected:
+        ax.plot(detection.data['time'],
+                detection.data[attr], 'g.-', label='detected')
+    ax.plot(predicted.data['time'],
+            predicted.data[attr], 'y.-', label='predicted')
+    ax.plot(ekf.data['time'], ekf.data[attr], 'b.-', label='ekf')
+    ax.set_title(attr)
+    ax.legend()
+    ax.set_xlim([2.4, 3.1])
+    # plt.savefig(attr, dpi=400)
+
+fig, axs = plt.subplots(4, 3)
+generate_plot(axs[0][0], 'r_x', True)
+generate_plot(axs[0][1], 'r_y', True)
+generate_plot(axs[0][2], 'r_z', True)
+generate_plot(axs[1][0], 'roll', True)
+generate_plot(axs[1][1], 'pitch', True)
+generate_plot(axs[1][2], 'yaw', True)
+generate_plot(axs[2][0], 'v_x', True)
+generate_plot(axs[2][1], 'v_y', True)
+generate_plot(axs[2][2], 'v_z', True)
+generate_plot(axs[3][0], 'omega_x', True)
+generate_plot(axs[3][1], 'omega_y', True)
+generate_plot(axs[3][2], 'omega_z', True)
+plt.show()
 
 # rows = [truth.time,
 #         truth.r_z,
@@ -93,53 +195,8 @@ ekf.get_data_from_bag(filename)
 #         ekf.roll,
 #         ekf.v_z,
 #         ekf.omega_x]
-rows = []
 
-with open('analysis.csv', 'wb') as f:
-    writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_ALL)
-    for row in rows:
-        writer.writerow(row)
-
-def compare_plot_pose(attr):
-    plt.plot(truth.data['time'], truth.data[attr],  'r.-', label='truth')
-    plt.plot(detection.data['time'],
-             detection.data[attr], 'g.-', label='detected')
-    plt.plot(predicted.data['time'],
-             predicted.data[attr], 'y.-', label='predicted')
-    plt.plot(ekf.data['time'], ekf.data[attr], 'b.-', label='ekf')
-    plt.title(attr)
-    plt.legend()
-    plt.xlim(2.5, 3.2)
-    # plt.show()
-    plt.savefig(attr, dpi=300)
-    plt.cla()
-
-def compare_plot_twist(attr):
-    plt.plot(truth.data['time'], truth.data[attr],  'r.-', label='truth')
-    plt.plot(predicted.data['time'],
-             predicted.data[attr], 'y.-', label='predicted')
-    plt.plot(ekf.data['time'], ekf.data[attr], 'b.-', label='ekf')
-    plt.title(attr)
-    plt.legend()
-    plt.xlim(2.5, 3.2)
-    # plt.show()
-    plt.savefig(attr, dpi=400)
-    plt.cla()
-
-
-compare_plot_pose('r_x')
-compare_plot_pose('r_y')
-compare_plot_pose('r_z')
-compare_plot_pose('q_x')
-compare_plot_pose('q_y')
-compare_plot_pose('q_z')
-compare_plot_pose('q_w')
-compare_plot_pose('roll')
-compare_plot_pose('pitch')
-compare_plot_pose('yaw')
-compare_plot_twist('v_x')
-compare_plot_twist('v_y')
-compare_plot_twist('v_z')
-compare_plot_twist('omega_x')
-compare_plot_twist('omega_y')
-compare_plot_twist('omega_z')
+# with open('analysis.csv', 'wb') as f:
+#     writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_ALL)
+#     for row in rows:
+#         writer.writerow(row)

@@ -8,42 +8,34 @@
 Eigen::Quaterniond operator+(const Eigen::Quaterniond q1, const Eigen::Quaterniond q2)
 {
     Eigen::Quaterniond q;
-    q.w() = q1.w() + q2.w();
     q.vec() = q1.vec() + q2.vec();
-    if (q.w() + q.x() + q.y() + q.z() != 0.0)
-        q.normalize();
+    q.w() = q1.w() + q2.w();
     return q;
 }
 
 Eigen::Quaterniond operator-(const Eigen::Quaterniond q1, const Eigen::Quaterniond q2)
 {
     Eigen::Quaterniond q;
-    q.w() = q1.w() - q2.w();
     q.vec() = q1.vec() - q2.vec();
-    if (q.w() + q.x() + q.y() + q.z() != 0.0)
-        q.normalize();
+    q.w() = q1.w() - q2.w();
     return q;
 }
 
 Eigen::Quaterniond operator*(const double a, const Eigen::Quaterniond b)
 {
     Eigen::Quaterniond c;
-    c.w() = a * b.w();
     c.vec() = a * b.vec();
-    if (c.w() + c.x() + c.y() + c.z() != 0)
-        c.normalize();
+    c.w() = a * b.w();
     return c;
 }
 
 Eigen::Quaterniond operator*(const Eigen::Quaterniond q1, const Eigen::Quaterniond q2)
 {
     Eigen::Quaterniond q;
-    q.w() = q1.w() * q2.w() - q1.x() * q2.x() - q1.y() * q2.y() - q1.z() * q2.z();
     q.x() = q1.w() * q2.x() + q1.x() * q2.w() + q1.y() * q2.z() - q1.z() * q2.y();
     q.y() = q1.w() * q2.y() - q1.x() * q2.z() + q1.y() * q2.w() + q1.z() * q2.x();
     q.z() = q1.w() * q2.z() + q1.x() * q2.y() - q1.y() * q2.x() + q1.z() * q2.w();
-    if (q.w() + q.x() + q.y() + q.z() != 0)
-        q.normalize();
+    q.w() = q1.w() * q2.w() - q1.x() * q2.x() - q1.y() * q2.y() - q1.z() * q2.z();
     return q;
 }
 
@@ -62,10 +54,10 @@ bool VisualEKF::initialise(const ObjectState initialState)
 {
     x_ = initialState;
 
-    P_.block<3, 3>(0, 0) *= sigma_c_r_W * sigma_c_r_W;                   // 1 cm
-    P_.block<4, 4>(3, 3) *= sigma_c_q_WO * sigma_c_q_WO;                 // quoternion error
-    P_.block<3, 3>(7, 7) *= sigma_c_v_O * sigma_c_v_O;                   // 1 cm/s
-    P_.block<3, 3>(10, 10) *= sigma_c_omega_O * sigma_c_omega_O;         // 1 degree/sec
+    P_.block<3, 3>(0, 0) *= sigma_c_r_W * sigma_c_r_W;           // 1 cm
+    P_.block<4, 4>(3, 3) *= sigma_c_q_WO * sigma_c_q_WO;         // quoternion error
+    P_.block<3, 3>(7, 7) *= sigma_c_v_O * sigma_c_v_O;           // 1 cm/s
+    P_.block<3, 3>(10, 10) *= sigma_c_omega_O * sigma_c_omega_O; // 1 degree/sec
 
     initialised = true;
 
@@ -90,13 +82,11 @@ ObjectStateDerivative VisualEKF::calcStateDerivative(const ObjectState &state)
     Eigen::Quaterniond temp;
     temp.w() = 0.0;
     temp.vec() = state.omega_O;
-    if (temp.w() + temp.x() + temp.y() + temp.z() != 0)
-        temp.normalize();
     stateDerivative.q_WO_dot = 0.5 * (state.q_WO * temp);
 
     stateDerivative.v_O_dot = state.q_WO.toRotationMatrix().inverse() * Eigen::Vector3d(0.0, 0.0, -9.81) - state.omega_O.cross(state.v_O);
 
-    stateDerivative.omega_O_dot = state.inertia.inverse() * (state.omega_O.cross(state.inertia * state.omega_O));
+    stateDerivative.omega_O_dot = state.inertia_inverse * (state.omega_O.cross(state.inertia * state.omega_O));
 
     // might be some implicit bug. Here it checks if there's nan in the vector
     // if (!((stateDerivative.omega_O_dot.array() == stateDerivative.omega_O_dot.array()).all()))
@@ -140,10 +130,10 @@ bool VisualEKF::calcJacobian(const ObjectState &state,
         (dt * state.omega_O.z()) / 4 + (dt * (state.omega_O.y() * ((dt * state.omega_O.x()) / 2 + 1) - (dt * state.omega_O.y() * state.omega_O.z()) / 2)) / 4, -(dt * ((dt * state.omega_O.y() * state.omega_O.y()) / 2 + state.omega_O.z() * ((dt * state.omega_O.x()) / 2 + 1) - (dt * state.omega_O.x() * state.omega_O.z()) / 2)) / 4, (dt * state.omega_O.x()) / 4 - (dt * ((dt * state.omega_O.x() * state.omega_O.y()) / 2 + (dt * state.omega_O.y() * state.omega_O.z()) / 2)) / 4 + 1, (dt * state.omega_O.y()) / 4 + (dt * ((dt * state.omega_O.z() * state.omega_O.z()) / 2 + state.omega_O.x() * ((dt * state.omega_O.x()) / 2 + 1))) / 4,
         (dt * ((dt * state.omega_O.y() * state.omega_O.z()) / 2 + state.omega_O.z() * ((dt * state.omega_O.x()) / 2 + 1) - (dt * state.omega_O.x() * state.omega_O.z()) / 2)) / 4, (dt * state.omega_O.z()) / 4 + (dt * (state.omega_O.y() * ((dt * state.omega_O.x()) / 2 + 1) - (dt * state.omega_O.y() * state.omega_O.z()) / 2)) / 4, -(dt * state.omega_O.y()) / 4 - (dt * ((dt * state.omega_O.z() * state.omega_O.z()) / 2 + state.omega_O.x() * ((dt * state.omega_O.x()) / 2 + 1))) / 4, (dt * state.omega_O.x()) / 4 - (dt * ((dt * state.omega_O.x() * state.omega_O.y()) / 2 + (dt * state.omega_O.y() * state.omega_O.z()) / 2)) / 4 + 1;
 
-    jacobian.block<4, 3>(3, 10) << (state.q_WO.w() * dt) / 4 - (dt * (state.q_WO.x() + (dt * (state.q_WO.w() * state.omega_O.y() + state.q_WO.x() * state.omega_O.x() - state.q_WO.z() * state.omega_O.z())) / 2 + (state.q_WO.x() * dt * state.omega_O.x()) / 2 + (state.q_WO.y() * dt * state.omega_O.y()) / 2 + (state.q_WO.z() * dt * state.omega_O.z()) / 2)) / 4, -(state.q_WO.x() * dt) / 4 - (dt * (state.q_WO.y() + (dt * (state.q_WO.w() * state.omega_O.z() + state.q_WO.y() * state.omega_O.x() + state.q_WO.z() * state.omega_O.y())) / 2 + (state.q_WO.w() * dt * state.omega_O.x()) / 2 - (state.q_WO.y() * dt * state.omega_O.z()) / 2 + (state.q_WO.z() * dt * state.omega_O.y()) / 2)) / 4, -(state.q_WO.y() * dt) / 4 - (dt * (state.q_WO.z() + (dt * (state.q_WO.x() * state.omega_O.z() - state.q_WO.y() * state.omega_O.y() + state.q_WO.z() * state.omega_O.x())) / 2 + (state.q_WO.w() * dt * state.omega_O.y()) / 2 + (state.q_WO.x() * dt * state.omega_O.z()) / 2 - (state.q_WO.z() * dt * state.omega_O.x()) / 2)) / 4,
-        (state.q_WO.x() * dt) / 4 + (dt * (state.q_WO.w() - (dt * (state.q_WO.x() * state.omega_O.y() - state.q_WO.w() * state.omega_O.x() + state.q_WO.y() * state.omega_O.z())) / 2 + (state.q_WO.w() * dt * state.omega_O.x()) / 2 + (state.q_WO.y() * dt * state.omega_O.z()) / 2 - (state.q_WO.z() * dt * state.omega_O.y()) / 2)) / 4, (state.q_WO.w() * dt) / 4 - (dt * (state.q_WO.z() + (dt * (state.q_WO.x() * state.omega_O.z() - state.q_WO.y() * state.omega_O.y() + state.q_WO.z() * state.omega_O.x())) / 2 + (state.q_WO.x() * dt * state.omega_O.x()) / 2 - (state.q_WO.y() * dt * state.omega_O.y()) / 2 - (state.q_WO.z() * dt * state.omega_O.z()) / 2)) / 4, (dt * (state.q_WO.y() + (dt * (state.q_WO.w() * state.omega_O.z() + state.q_WO.y() * state.omega_O.x() + state.q_WO.z() * state.omega_O.y())) / 2 + (state.q_WO.w() * dt * state.omega_O.z()) / 2 - (state.q_WO.x() * dt * state.omega_O.y()) / 2 - (state.q_WO.y() * dt * state.omega_O.x()) / 2)) / 4 - (state.q_WO.z() * dt) / 4,
-        (state.q_WO.y() * dt) / 4 + (dt * (state.q_WO.z() + (dt * (state.q_WO.x() * state.omega_O.z() - state.q_WO.y() * state.omega_O.y() + state.q_WO.z() * state.omega_O.x())) / 2 + (state.q_WO.w() * dt * state.omega_O.y()) / 2 - (state.q_WO.x() * dt * state.omega_O.z()) / 2 + (state.q_WO.z() * dt * state.omega_O.x()) / 2)) / 4, (state.q_WO.z() * dt) / 4 - (dt * ((dt * (state.q_WO.x() * state.omega_O.y() - state.q_WO.w() * state.omega_O.x() + state.q_WO.y() * state.omega_O.z())) / 2 - state.q_WO.w() + (state.q_WO.w() * dt * state.omega_O.z()) / 2 + (state.q_WO.x() * dt * state.omega_O.y()) / 2 + (state.q_WO.y() * dt * state.omega_O.x()) / 2)) / 4, (state.q_WO.w() * dt) / 4 - (dt * (state.q_WO.x() + (dt * (state.q_WO.w() * state.omega_O.y() + state.q_WO.x() * state.omega_O.x() - state.q_WO.z() * state.omega_O.z())) / 2 - (state.q_WO.x() * dt * state.omega_O.x()) / 2 + (state.q_WO.y() * dt * state.omega_O.y()) / 2 - (state.q_WO.z() * dt * state.omega_O.z()) / 2)) / 4,
-        (state.q_WO.z() * dt) / 4 - (dt * (state.q_WO.y() + (dt * (state.q_WO.w() * state.omega_O.z() + state.q_WO.y() * state.omega_O.x() + state.q_WO.z() * state.omega_O.y())) / 2 - (state.q_WO.w() * dt * state.omega_O.z()) / 2 - (state.q_WO.x() * dt * state.omega_O.y()) / 2 + (state.q_WO.y() * dt * state.omega_O.x()) / 2)) / 4, (dt * (state.q_WO.x() + (dt * (state.q_WO.w() * state.omega_O.y() + state.q_WO.x() * state.omega_O.x() - state.q_WO.z() * state.omega_O.z())) / 2 + (state.q_WO.w() * dt * state.omega_O.y()) / 2 - (state.q_WO.x() * dt * state.omega_O.z()) / 2 - (state.q_WO.z() * dt * state.omega_O.x()) / 2)) / 4 - (state.q_WO.y() * dt) / 4, (state.q_WO.x() * dt) / 4 - (dt * ((dt * (state.q_WO.x() * state.omega_O.y() - state.q_WO.w() * state.omega_O.x() + state.q_WO.y() * state.omega_O.z())) / 2 - state.q_WO.w() + (state.q_WO.w() * dt * state.omega_O.x()) / 2 + (state.q_WO.y() * dt * state.omega_O.z()) / 2 + (state.q_WO.z() * dt * state.omega_O.y()) / 2)) / 4;
+    jacobian.block<4, 3>(3, 10) << (state.q_WO.x() * dt) / 4 - (dt * (state.q_WO.y() + (dt * (state.q_WO.x() * state.omega_O.y() + state.q_WO.y() * state.omega_O.x() - state.q_WO.w() * state.omega_O.z())) / 2 + (state.q_WO.y() * dt * state.omega_O.x()) / 2 + (state.q_WO.z() * dt * state.omega_O.y()) / 2 + (state.q_WO.w() * dt * state.omega_O.z()) / 2)) / 4, -(state.q_WO.y() * dt) / 4 - (dt * (state.q_WO.z() + (dt * (state.q_WO.x() * state.omega_O.z() + state.q_WO.z() * state.omega_O.x() + state.q_WO.w() * state.omega_O.y())) / 2 + (state.q_WO.x() * dt * state.omega_O.x()) / 2 - (state.q_WO.z() * dt * state.omega_O.z()) / 2 + (state.q_WO.w() * dt * state.omega_O.y()) / 2)) / 4, -(state.q_WO.z() * dt) / 4 - (dt * (state.q_WO.w() + (dt * (state.q_WO.y() * state.omega_O.z() - state.q_WO.z() * state.omega_O.y() + state.q_WO.w() * state.omega_O.x())) / 2 + (state.q_WO.x() * dt * state.omega_O.y()) / 2 + (state.q_WO.y() * dt * state.omega_O.z()) / 2 - (state.q_WO.w() * dt * state.omega_O.x()) / 2)) / 4,
+        (state.q_WO.y() * dt) / 4 + (dt * (state.q_WO.x() - (dt * (state.q_WO.y() * state.omega_O.y() - state.q_WO.x() * state.omega_O.x() + state.q_WO.z() * state.omega_O.z())) / 2 + (state.q_WO.x() * dt * state.omega_O.x()) / 2 + (state.q_WO.z() * dt * state.omega_O.z()) / 2 - (state.q_WO.w() * dt * state.omega_O.y()) / 2)) / 4, (state.q_WO.x() * dt) / 4 - (dt * (state.q_WO.w() + (dt * (state.q_WO.y() * state.omega_O.z() - state.q_WO.z() * state.omega_O.y() + state.q_WO.w() * state.omega_O.x())) / 2 + (state.q_WO.y() * dt * state.omega_O.x()) / 2 - (state.q_WO.z() * dt * state.omega_O.y()) / 2 - (state.q_WO.w() * dt * state.omega_O.z()) / 2)) / 4, (dt * (state.q_WO.z() + (dt * (state.q_WO.x() * state.omega_O.z() + state.q_WO.z() * state.omega_O.x() + state.q_WO.w() * state.omega_O.y())) / 2 + (state.q_WO.x() * dt * state.omega_O.z()) / 2 - (state.q_WO.y() * dt * state.omega_O.y()) / 2 - (state.q_WO.z() * dt * state.omega_O.x()) / 2)) / 4 - (state.q_WO.w() * dt) / 4,
+        (state.q_WO.z() * dt) / 4 + (dt * (state.q_WO.w() + (dt * (state.q_WO.y() * state.omega_O.z() - state.q_WO.z() * state.omega_O.y() + state.q_WO.w() * state.omega_O.x())) / 2 + (state.q_WO.x() * dt * state.omega_O.y()) / 2 - (state.q_WO.y() * dt * state.omega_O.z()) / 2 + (state.q_WO.w() * dt * state.omega_O.x()) / 2)) / 4, (state.q_WO.w() * dt) / 4 - (dt * ((dt * (state.q_WO.y() * state.omega_O.y() - state.q_WO.x() * state.omega_O.x() + state.q_WO.z() * state.omega_O.z())) / 2 - state.q_WO.x() + (state.q_WO.x() * dt * state.omega_O.z()) / 2 + (state.q_WO.y() * dt * state.omega_O.y()) / 2 + (state.q_WO.z() * dt * state.omega_O.x()) / 2)) / 4, (state.q_WO.x() * dt) / 4 - (dt * (state.q_WO.y() + (dt * (state.q_WO.x() * state.omega_O.y() + state.q_WO.y() * state.omega_O.x() - state.q_WO.w() * state.omega_O.z())) / 2 - (state.q_WO.y() * dt * state.omega_O.x()) / 2 + (state.q_WO.z() * dt * state.omega_O.y()) / 2 - (state.q_WO.w() * dt * state.omega_O.z()) / 2)) / 4,
+        (state.q_WO.w() * dt) / 4 - (dt * (state.q_WO.z() + (dt * (state.q_WO.x() * state.omega_O.z() + state.q_WO.z() * state.omega_O.x() + state.q_WO.w() * state.omega_O.y())) / 2 - (state.q_WO.x() * dt * state.omega_O.z()) / 2 - (state.q_WO.y() * dt * state.omega_O.y()) / 2 + (state.q_WO.z() * dt * state.omega_O.x()) / 2)) / 4, (dt * (state.q_WO.y() + (dt * (state.q_WO.x() * state.omega_O.y() + state.q_WO.y() * state.omega_O.x() - state.q_WO.w() * state.omega_O.z())) / 2 + (state.q_WO.x() * dt * state.omega_O.y()) / 2 - (state.q_WO.y() * dt * state.omega_O.z()) / 2 - (state.q_WO.w() * dt * state.omega_O.x()) / 2)) / 4 - (state.q_WO.z() * dt) / 4, (state.q_WO.y() * dt) / 4 - (dt * ((dt * (state.q_WO.y() * state.omega_O.y() - state.q_WO.x() * state.omega_O.x() + state.q_WO.z() * state.omega_O.z())) / 2 - state.q_WO.x() + (state.q_WO.x() * dt * state.omega_O.x()) / 2 + (state.q_WO.z() * dt * state.omega_O.z()) / 2 + (state.q_WO.w() * dt * state.omega_O.y()) / 2)) / 4;
 
     jacobian.block<3, 3>(7, 7) << 1 - (dt * (dt * state.omega_O.y() * state.omega_O.y() + dt * state.omega_O.z() * state.omega_O.z())) / 2, (dt * state.omega_O.z()) / 2 + (dt * (state.omega_O.z() + dt * state.omega_O.x() * state.omega_O.y())) / 2, -(dt * state.omega_O.y()) / 2 - (dt * (state.omega_O.y() - dt * state.omega_O.x() * state.omega_O.z())) / 2,
         -(dt * state.omega_O.z()) / 2 - (dt * (state.omega_O.z() - dt * state.omega_O.x() * state.omega_O.y())) / 2, 1 - (dt * (dt * state.omega_O.x() * state.omega_O.x() + dt * state.omega_O.z() * state.omega_O.z())) / 2, (dt * state.omega_O.x()) / 2 + (dt * (state.omega_O.x() + dt * state.omega_O.y() * state.omega_O.z())) / 2,
@@ -174,6 +164,7 @@ bool VisualEKF::stateTransition(const ObjectState &object_state_k_minus_1,
     ObjectState state_k_tmp;
     state_k_tmp.r_W = object_state_k_minus_1.r_W + delta_x_1.r_W;
     state_k_tmp.q_WO = object_state_k_minus_1.q_WO + delta_x_1.q_WO;
+    state_k_tmp.q_WO.normalize();
     state_k_tmp.v_O = object_state_k_minus_1.v_O + delta_x_1.v_O;
     state_k_tmp.omega_O = object_state_k_minus_1.omega_O + delta_x_1.omega_O;
 
@@ -187,6 +178,7 @@ bool VisualEKF::stateTransition(const ObjectState &object_state_k_minus_1,
 
     object_state_k.r_W = object_state_k_minus_1.r_W + 0.5 * (delta_x_1.r_W + delta_x_2.r_W);
     object_state_k.q_WO = object_state_k_minus_1.q_WO + 0.5 * (delta_x_1.q_WO + delta_x_2.q_WO);
+    object_state_k.q_WO.normalize();
     object_state_k.v_O = object_state_k_minus_1.v_O + 0.5 * (delta_x_1.v_O + delta_x_2.v_O);
     object_state_k.omega_O = object_state_k_minus_1.omega_O + 0.5 * (delta_x_1.omega_O + delta_x_2.omega_O);
 
@@ -224,7 +216,7 @@ bool VisualEKF::update(const ApriltagMeasurement apriltagMeasurement)
     y.segment<3>(0) = apriltagMeasurement.r_W - x_predicted_.r_W;
     y.segment<4>(3) = (apriltagMeasurement.q_WO - x_predicted_.q_WO).coeffs(); // xyzw
 
-    // std::cout << "y: "<< y << std::endl;
+    // std::cout << "y:" << std::endl << y << std::endl;
 
     // calculate measurement jacobian
     Eigen::Matrix<double, 7, 13> H;
@@ -232,7 +224,7 @@ bool VisualEKF::update(const ApriltagMeasurement apriltagMeasurement)
     H.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
     H.block<4, 4>(3, 3) = Eigen::Matrix4d::Identity();
 
-    // std::cout << "H: " << H << std::endl;
+    // std::cout << "H:" << std::endl << H << std::endl;
 
     // calculate covariance matrix
     Eigen::Matrix<double, 7, 7> R;
@@ -240,38 +232,37 @@ bool VisualEKF::update(const ApriltagMeasurement apriltagMeasurement)
     R.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * sigma_z_r_W * sigma_z_r_W;
     R.block<4, 4>(3, 3) = Eigen::Matrix4d::Identity() * sigma_z_q_WO * sigma_z_q_WO;
 
-    // std::cout << "R: " << R << std::endl;
+    // std::cout << "R:" << std::endl << R << std::endl;
 
-    // calculte residual covariance
+    // calculate residual covariance
     Eigen::Matrix<double, 7, 7> S;
     S = H * P_ * H.transpose() + R;
 
-    // std::cout << "S: " << S << std::endl;
+    // std::cout << "S:" << std::endl << S << std::endl;
 
     // calculate kalman gain
     Eigen::Matrix<double, 13, 7> K;
     K = P_ * H.transpose() * S.inverse();
 
-    // std::cout << "K: " << K << std::endl;
+    // std::cout << "K:" << std::endl << K << std::endl;
 
     // calculate state update
     Eigen::Matrix<double, 13, 1> delta;
     delta = K * y;
 
-    // std::cout << "delta: " << delta << std::endl;
+    // std::cout << "delta:" << std::endl << delta << std::endl;
 
     // update state
     x_.r_W = x_predicted_.r_W + delta.segment<3>(0);
     x_.q_WO.coeffs() = x_predicted_.q_WO.coeffs() + delta.segment<4>(3);
-    if (x_.q_WO.w() + x_.q_WO.x() + x_.q_WO.y() + x_.q_WO.z() != 0)
-        x_.q_WO.normalize();
+    x_.q_WO.normalize();
     x_.v_O = x_predicted_.v_O + delta.segment<3>(7);
     x_.omega_O = x_predicted_.omega_O + delta.segment<3>(10);
 
     // update covariance
     P_ = (Eigen::Matrix<double, 13, 13>::Identity() - K * H) * P_;
 
-    // std::cout << "P: " << P_ << std::endl;
+    // std::cout << "P:" << std::endl << P_ << std::endl;
 
     return true;
 }
