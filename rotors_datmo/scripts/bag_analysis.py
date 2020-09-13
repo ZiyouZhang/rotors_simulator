@@ -8,6 +8,7 @@ import csv
 import glob
 import os
 from tf.transformations import euler_from_quaternion
+from scipy.interpolate import interp1d
 
 if (len(sys.argv) > 1):
     filename = "../bag/" + sys.argv[1] + ".bag"
@@ -15,6 +16,7 @@ else:
     list_of_files = glob.glob('../bag/*')
     latest_file = max(list_of_files, key=os.path.getctime)
     filename = latest_file
+
 
 def get_rpy(msg):
 
@@ -27,7 +29,7 @@ def get_rpy(msg):
 
 class topic_data:
 
-    def __init__(self, topic_name):
+    def __init__(self, topic_name, filename):
         self.topic_name = topic_name
         self.data = {
             "time": [],
@@ -48,6 +50,7 @@ class topic_data:
             "omega_y": [],
             "omega_z": []
         }
+        self.get_data_from_bag(filename)
 
     def get_data_from_bag(self, filename):
         with rosbag.Bag(filename) as bag:
@@ -102,15 +105,10 @@ class topic_data:
                 (self.data["yaw"][i+1] - self.data["yaw"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
 
 
-truth = topic_data('/tag_box_pose_ground_truth')
-detection = topic_data('/detected_object_state')
-predicted = topic_data('/predicted_object_state')
-ekf = topic_data('/updated_object_state')
-
-truth.get_data_from_bag(filename)
-detection.get_data_from_bag(filename)
-predicted.get_data_from_bag(filename)
-ekf.get_data_from_bag(filename)
+truth = topic_data('/tag_box_pose_ground_truth', filename)
+detection = topic_data('/detected_object_state', filename)
+predicted = topic_data('/predicted_object_state', filename)
+ekf = topic_data('/updated_object_state', filename)
 
 detection.calculate_velocities()
 
@@ -130,6 +128,65 @@ def compare_plot(attr, include_detected):
     # plt.savefig(attr, dpi=400)
     plt.cla()
 
+
+def generate_plot(ax, attr, include_detected):
+    ax.plot(truth.data['time'], truth.data[attr],  'r.-', label='truth')
+    if include_detected:
+        ax.plot(detection.data['time'], detection.data[attr], 'g.-', label='detected')
+    ax.plot(predicted.data['time'], predicted.data[attr], 'y.-', label='predicted')
+    ax.plot(ekf.data['time'], ekf.data[attr], 'b.-', label='ekf')
+    ax.set_title(attr)
+    ax.legend()
+    ax.set_xlim([2.4, 3.1])
+    # plt.savefig(attr, dpi=400)
+
+
+def error_plot(ax, attr):
+    f = interp1d(truth.data['time'], truth.data[attr])
+    err_det = detection.data[attr] - f(detection.data['time'])
+    err_ekf = ekf.data[attr] - f(ekf.data['time'])
+
+    ax.plot(detection.data['time'], err_det, 'g.-', label='detected')
+    ax.plot(ekf.data['time'], err_ekf, 'b.-', label='ekf')
+    
+    plt.title(attr)
+    plt.legend()
+    plt.xlim(2, 3.0)
+
+if __name__ == "__main__":
+
+    fig, axs = plt.subplots(4, 3)
+    error_plot(axs[0][0], 'r_x')
+    error_plot(axs[0][1], 'r_y')
+    error_plot(axs[0][2], 'r_z')
+    error_plot(axs[1][0], 'roll')
+    error_plot(axs[1][1], 'pitch')
+    error_plot(axs[1][2], 'yaw')
+    error_plot(axs[2][0], 'v_x')
+    error_plot(axs[2][1], 'v_y')
+    error_plot(axs[2][2], 'v_z')
+    error_plot(axs[3][0], 'omega_x')
+    error_plot(axs[3][1], 'omega_y')
+    error_plot(axs[3][2], 'omega_z')
+    plt.show()
+
+
+    # fig, axs = plt.subplots(4, 3)
+    # generate_plot(axs[0][0], 'r_x', True)
+    # generate_plot(axs[0][1], 'r_y', True)
+    # generate_plot(axs[0][2], 'r_z', True)
+    # generate_plot(axs[1][0], 'roll', True)
+    # generate_plot(axs[1][1], 'pitch', True)
+    # generate_plot(axs[1][2], 'yaw', True)
+    # generate_plot(axs[2][0], 'v_x', True)
+    # generate_plot(axs[2][1], 'v_y', True)
+    # generate_plot(axs[2][2], 'v_z', True)
+    # generate_plot(axs[3][0], 'omega_x', True)
+    # generate_plot(axs[3][1], 'omega_y', True)
+    # generate_plot(axs[3][2], 'omega_z', True)
+    # plt.show()
+
+
 # compare_plot('r_x', True)
 # compare_plot('r_y', True)
 # compare_plot('r_z', True)
@@ -146,34 +203,6 @@ def compare_plot(attr, include_detected):
 # compare_plot('omega_x', False)
 # compare_plot('omega_y', False)
 # compare_plot('omega_z', False)
-
-def generate_plot(ax, attr, include_detected):
-    ax.plot(truth.data['time'], truth.data[attr],  'r.-', label='truth')
-    if include_detected:
-        ax.plot(detection.data['time'],
-                detection.data[attr], 'g.-', label='detected')
-    ax.plot(predicted.data['time'],
-            predicted.data[attr], 'y.-', label='predicted')
-    ax.plot(ekf.data['time'], ekf.data[attr], 'b.-', label='ekf')
-    ax.set_title(attr)
-    ax.legend()
-    ax.set_xlim([2.4, 3.1])
-    # plt.savefig(attr, dpi=400)
-
-fig, axs = plt.subplots(4, 3)
-generate_plot(axs[0][0], 'r_x', True)
-generate_plot(axs[0][1], 'r_y', True)
-generate_plot(axs[0][2], 'r_z', True)
-generate_plot(axs[1][0], 'roll', True)
-generate_plot(axs[1][1], 'pitch', True)
-generate_plot(axs[1][2], 'yaw', True)
-generate_plot(axs[2][0], 'v_x', True)
-generate_plot(axs[2][1], 'v_y', True)
-generate_plot(axs[2][2], 'v_z', True)
-generate_plot(axs[3][0], 'omega_x', True)
-generate_plot(axs[3][1], 'omega_y', True)
-generate_plot(axs[3][2], 'omega_z', True)
-plt.show()
 
 # rows = [truth.time,
 #         truth.r_z,
