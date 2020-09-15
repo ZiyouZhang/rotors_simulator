@@ -88,21 +88,15 @@ private:
     Eigen::Matrix<double, 13, 13> P_;
     Eigen::Matrix<double, 13, 13> jacobian;
 
-    // noise params
-    double sigma_c_r_W = 1.0e-4;     // 0.01 meter for location error
-    double sigma_c_q_WO = 1.0e-2;    // 0.01 for quoternion error
-    double sigma_c_v_O = 5.0e-2;     // 0.05 velocity error
-    double sigma_c_omega_O = 5.0e-2; // 5e-4, amgular velocity error
+    //process noise params
+    double sigma_c_r_W = 0.01;     // m, location error
+    double sigma_c_q_WO = 0.01;    // N/A, for quoternion error
+    double sigma_c_v_O = 0.05;     // m/s, velocity error
+    double sigma_c_omega_O = 0.01; // rad/s, amgular velocity error
 
-    double sigma_z_r_W = 5.0e-2;  // 0.05 meter for pose measurement error
-    double sigma_z_q_WO = 1.0e-3; // 0.1 for quaternion measurement error
-
-    // double sigma_c_r_W = 0.0;     // 0.01 meter for tag detection error
-    // double sigma_c_q_WO = 0.0;    // 0.001 for quoternion error
-    // double sigma_c_v_O = 0.0;     // 0.05 velocity error
-    // double sigma_c_omega_O = 0.0; // 5e-4, amgular velocity error
-    // double sigma_z_r_W = 0.0;       // 0.05 meter for pose measurement error
-    // double sigma_z_q_WO = 0.0;      // 0.001 for quaternion measurement error
+    //measurement noise params
+    double sigma_z_r_W = 0.2;  // m, pose measurement error
+    double sigma_z_q_WO = 0.01; // N/A, quaternion measurement error
 
     friend class PoseDetector;
 };

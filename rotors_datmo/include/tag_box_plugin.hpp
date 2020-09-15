@@ -38,7 +38,8 @@ namespace gazebo
         ros::Publisher posePub;
         tf::TransformBroadcaster br;
 
-        bool initialised = false;
+        bool pose_initialised = false;
+        bool vel_initialised = false;
     };
 
 } // namespace gazebo

@@ -208,10 +208,10 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
             //                                    quaternion_WO.getAxis().getY(),
             //                                    quaternion_WO.getAxis().getZ());
 
-            initialState.r_W = Eigen::Vector3d(4.0, -0.5, 1.5);
+            initialState.r_W = Eigen::Vector3d(5.0, -0.5, 0.3);
             Eigen::Quaterniond eigen_quaterion(1.0, 0.0, 0.0, 0.0);
             initialState.q_WO = eigen_quaterion;
-            initialState.v_O = Eigen::Vector3d(-4.0, 0.0, 0.0);
+            initialState.v_O = Eigen::Vector3d(-4.0, 0.5, 4.0);
             initialState.omega_O = Eigen::Vector3d(1.0, 0.0, 0.0);
             initialState.timestamp = currentTime.toSec();
 
@@ -349,7 +349,7 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
 
     // lastDetectedState = detected_state;
 
-    if (currentTime.toSec() > 3.5)
+    if (currentTime.toSec() > 5)
         ros::shutdown();
 }
 

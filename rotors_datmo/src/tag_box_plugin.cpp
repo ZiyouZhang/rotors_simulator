@@ -17,22 +17,28 @@ namespace gazebo
         posePub = nh.advertise<nav_msgs::Odometry>("/tag_box_pose_ground_truth", 1);
 
         model->SetGravityMode(false);
+        model->SetEnabled(false);
     }
 
     void TagBoxPlugin::OnUpdate()
     {
         ros::Time currentTime = ros::Time::now();
+
+        if (!pose_initialised && currentTime.toSec() > 3) {
+            model->SetWorldPose(ignition::math::Pose3d(5.0, -0.5, 0.3, 0.0, 0.0, 0.0));
+            pose_initialised = true;
+        }
         
-        if (!initialised && nh.hasParam("/start_motion"))
+        if (!vel_initialised && nh.hasParam("/start_motion"))
         {
             bool startMotion = false;
             nh.getParam("/start_motion", startMotion);
             if (startMotion)
             {
-                initialised = true;
                 model->SetGravityMode(true);
-                model->SetLinearVel(ignition::math::Vector3d(-4.0, 0.0, 0.0));
+                model->SetLinearVel(ignition::math::Vector3d(-4.0, 0.5, 4.0));
                 model->SetAngularVel(ignition::math::Vector3d(1.0, 0.0, 0.0));
+                vel_initialised = true;
             }
         }
 

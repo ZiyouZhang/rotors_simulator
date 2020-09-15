@@ -3,6 +3,7 @@
 import rosbag
 import sys
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import csv
 import glob
@@ -25,6 +26,9 @@ def get_rpy(msg):
                                               msg.pose.pose.orientation.z,
                                               msg.pose.pose.orientation.w])
     return roll, pitch, yaw
+
+def diff_percent(a, b):
+    return (a-b)/b * 100 if b else 0
 
 
 class topic_data:
@@ -90,19 +94,13 @@ class topic_data:
         self.data["omega_z"].append(0)
 
         for i in range(len(self.data["time"])-1):
-            self.data["v_x"].append((self.data["r_x"][i+1] - self.data["r_x"]
-                                     [i]) / (self.data["time"][i+1] - self.data["time"][i]))
-            self.data["v_y"].append((self.data["r_y"][i+1] - self.data["r_y"]
-                                     [i]) / (self.data["time"][i+1] - self.data["time"][i]))
-            self.data["v_z"].append((self.data["r_z"][i+1] - self.data["r_z"]
-                                     [i]) / (self.data["time"][i+1] - self.data["time"][i]))
+            self.data["v_x"].append((self.data["r_x"][i+1] - self.data["r_x"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
+            self.data["v_y"].append((self.data["r_y"][i+1] - self.data["r_y"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
+            self.data["v_z"].append((self.data["r_z"][i+1] - self.data["r_z"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
 
-            self.data["omega_x"].append((self.data["roll"][i+1] - self.data["roll"][i]) / (
-                self.data["time"][i+1] - self.data["time"][i]))
-            self.data["omega_y"].append((self.data["pitch"][i+1] - self.data["pitch"][i]) / (
-                self.data["time"][i+1] - self.data["time"][i]))
-            self.data["omega_z"].append(
-                (self.data["yaw"][i+1] - self.data["yaw"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
+            self.data["omega_x"].append((self.data["roll"][i+1] - self.data["roll"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
+            self.data["omega_y"].append((self.data["pitch"][i+1] - self.data["pitch"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
+            self.data["omega_z"].append((self.data["yaw"][i+1] - self.data["yaw"][i]) / (self.data["time"][i+1] - self.data["time"][i]))
 
 
 truth = topic_data('/tag_box_pose_ground_truth', filename)
@@ -111,7 +109,6 @@ predicted = topic_data('/predicted_object_state', filename)
 ekf = topic_data('/updated_object_state', filename)
 
 detection.calculate_velocities()
-
 
 def compare_plot(attr, include_detected):
     plt.plot(truth.data['time'], truth.data[attr],  'r.-', label='truth')
@@ -124,9 +121,9 @@ def compare_plot(attr, include_detected):
     plt.title(attr)
     plt.legend()
     plt.xlim(2, 3.2)
-    plt.show()
+    # plt.show()
     # plt.savefig(attr, dpi=400)
-    plt.cla()
+    # plt.cla()
 
 
 def generate_plot(ax, attr, include_detected):
@@ -137,40 +134,58 @@ def generate_plot(ax, attr, include_detected):
     ax.plot(ekf.data['time'], ekf.data[attr], 'b.-', label='ekf')
     ax.set_title(attr)
     ax.legend()
-    ax.set_xlim([2.4, 3.1])
+    ax.set_xlim([2.4, 5])
     # plt.savefig(attr, dpi=400)
 
 
 def error_plot(ax, attr):
     f = interp1d(truth.data['time'], truth.data[attr])
-    err_det = detection.data[attr] - f(detection.data['time'])
-    err_ekf = ekf.data[attr] - f(ekf.data['time'])
+    err_det = []
+    err_ekf = []
+    for i in range(len(ekf.data['time'])):
+        err_det.append(diff_percent(detection.data[attr][i],f(detection.data['time'][i])))
+        err_ekf.append(diff_percent(ekf.data[attr][i], f(ekf.data['time'][i])))
 
     ax.plot(detection.data['time'], err_det, 'g.-', label='detected')
     ax.plot(ekf.data['time'], err_ekf, 'b.-', label='ekf')
     
-    plt.title(attr)
-    plt.legend()
-    plt.xlim(2, 3.0)
+    ax.set_title(attr)
+    ax.legend()
+    ax.set_xlim([2.4, 3.5])
 
 if __name__ == "__main__":
-
-    fig, axs = plt.subplots(4, 3)
-    error_plot(axs[0][0], 'r_x')
-    error_plot(axs[0][1], 'r_y')
-    error_plot(axs[0][2], 'r_z')
-    error_plot(axs[1][0], 'roll')
-    error_plot(axs[1][1], 'pitch')
-    error_plot(axs[1][2], 'yaw')
-    error_plot(axs[2][0], 'v_x')
-    error_plot(axs[2][1], 'v_y')
-    error_plot(axs[2][2], 'v_z')
-    error_plot(axs[3][0], 'omega_x')
-    error_plot(axs[3][1], 'omega_y')
-    error_plot(axs[3][2], 'omega_z')
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')  
+    ax.plot(truth.data["r_x"], truth.data["r_y"], truth.data["r_z"], 'r.-', label='gournd truth trajectory')
+    ax.plot(detection.data["r_x"], detection.data["r_y"], detection.data["r_z"],'g.-', label='detected trajectory')
+    ax.plot(ekf.data["r_x"], ekf.data["r_y"], ekf.data["r_z"], 'b.-', label='ekf trajectory')
+    ax.legend()
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_xlim(ekf.data['r_x'][-1],ekf.data['r_x'][0])
+    ax.set_ylim()
+    ax.set_zlim()
     plt.show()
 
 
+    # plt.cla()
+    # fig, axs = plt.subplots(4, 3)
+    # error_plot(axs[0][0], 'r_x')
+    # error_plot(axs[0][1], 'r_y')
+    # error_plot(axs[0][2], 'r_z')
+    # error_plot(axs[1][0], 'roll')
+    # error_plot(axs[1][1], 'pitch')
+    # error_plot(axs[1][2], 'yaw')
+    # error_plot(axs[2][0], 'v_x')
+    # error_plot(axs[2][1], 'v_y')
+    # error_plot(axs[2][2], 'v_z')
+    # error_plot(axs[3][0], 'omega_x')
+    # error_plot(axs[3][1], 'omega_y')
+    # error_plot(axs[3][2], 'omega_z')
+    # plt.show()
+
+    # plt.cla()
     # fig, axs = plt.subplots(4, 3)
     # generate_plot(axs[0][0], 'r_x', True)
     # generate_plot(axs[0][1], 'r_y', True)
@@ -186,46 +201,45 @@ if __name__ == "__main__":
     # generate_plot(axs[3][2], 'omega_z', True)
     # plt.show()
 
+    # compare_plot('r_x', True)
+    # compare_plot('r_y', True)
+    # compare_plot('r_z', True)
+    # compare_plot('q_x', True)
+    # compare_plot('q_y', True)
+    # compare_plot('q_z', True)
+    # compare_plot('q_w', True)
+    # compare_plot('roll', True)
+    # compare_plot('pitch', True)
+    # compare_plot('yaw', True)
+    # compare_plot('v_x', False)
+    # compare_plot('v_y', False)
+    # compare_plot('v_z', False)
+    # compare_plot('omega_x', False)
+    # compare_plot('omega_y', False)
+    # compare_plot('omega_z', False)
 
-# compare_plot('r_x', True)
-# compare_plot('r_y', True)
-# compare_plot('r_z', True)
-# compare_plot('q_x', True)
-# compare_plot('q_y', True)
-# compare_plot('q_z', True)
-# compare_plot('q_w', True)
-# compare_plot('roll', True)
-# compare_plot('pitch', True)
-# compare_plot('yaw', True)
-# compare_plot('v_x', False)
-# compare_plot('v_y', False)
-# compare_plot('v_z', False)
-# compare_plot('omega_x', False)
-# compare_plot('omega_y', False)
-# compare_plot('omega_z', False)
+    # rows = [truth.time,
+    #         truth.r_z,
+    #         truth.roll,
+    #         truth.v_z,
+    #         truth.omega_x,
+    #         predicted.time,
+    #         predicted.r_z,
+    #         predicted.roll,
+    #         predicted.v_z,
+    #         predicted.omega_x,
+    #         detection.time,
+    #         detection.r_z,
+    #         detection.roll,
+    #         detection.v_z,
+    #         detection.omega_x,
+    #         ekf.time,
+    #         ekf.r_z,
+    #         ekf.roll,
+    #         ekf.v_z,
+    #         ekf.omega_x]
 
-# rows = [truth.time,
-#         truth.r_z,
-#         truth.roll,
-#         truth.v_z,
-#         truth.omega_x,
-#         predicted.time,
-#         predicted.r_z,
-#         predicted.roll,
-#         predicted.v_z,
-#         predicted.omega_x,
-#         detection.time,
-#         detection.r_z,
-#         detection.roll,
-#         detection.v_z,
-#         detection.omega_x,
-#         ekf.time,
-#         ekf.r_z,
-#         ekf.roll,
-#         ekf.v_z,
-#         ekf.omega_x]
-
-# with open('analysis.csv', 'wb') as f:
-#     writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_ALL)
-#     for row in rows:
-#         writer.writerow(row)
+    # with open('analysis.csv', 'wb') as f:
+    #     writer = csv.writer(f, delimiter=',', quoting=csv.QUOTE_ALL)
+    #     for row in rows:
+    #         writer.writerow(row)
