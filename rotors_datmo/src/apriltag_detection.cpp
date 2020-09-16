@@ -62,7 +62,7 @@ PoseDetector::PoseDetector() : it(nh)
     //           << std::endl;
 
     // Initialse camera info
-    info.tagsize = 0.4;
+    info.tagsize = 0.16;
     info.fx = 554.3827128226441;
     info.fy = 554.3827128226441;
     info.cx = 320.5;
@@ -71,7 +71,7 @@ PoseDetector::PoseDetector() : it(nh)
     // Initialise transformation matrices
     T_TO << 0, -1, 0, 0,
         0, 0, -1, 0,
-        1, 0, 0, 0.25,
+        1, 0, 0, 0.10,
         0, 0, 0, 1;
 
     detected_state.header.frame_id = "/detected_tag_box";
@@ -202,15 +202,10 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         if (!visualEKF.isInitialsed())
         {
             ObjectState initialState;
-            // initialState.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
-            // Eigen::Quaterniond eigen_quaterion(quaternion_WO.getW(),
-            //                                    quaternion_WO.getAxis().getX(),
-            //                                    quaternion_WO.getAxis().getY(),
-            //                                    quaternion_WO.getAxis().getZ());
-
-            initialState.r_W = Eigen::Vector3d(5.0, -0.5, 0.3);
-            Eigen::Quaterniond eigen_quaterion(1.0, 0.0, 0.0, 0.0);
-            initialState.q_WO = eigen_quaterion;
+            // initialState.r_W = Eigen::Vector3d(5.0, -0.5, 0.3);
+            // Eigen::Quaterniond eigen_quaterion(1.0, 0.0, 0.0, 0.0);
+            initialState.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
+            initialState.q_WO = Eigen::Quaterniond(T_WO.block<3,3>(0,0));
             initialState.v_O = Eigen::Vector3d(-4.0, 0.5, 4.0);
             initialState.omega_O = Eigen::Vector3d(1.0, 0.0, 0.0);
             initialState.timestamp = currentTime.toSec();
@@ -294,9 +289,7 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
 
             ApriltagMeasurement measurement;
             measurement.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
-
-            Eigen::Quaterniond eigen_quaterion(T_WO.block<3, 3>(0, 0));
-            measurement.q_WO = eigen_quaterion;
+            measurement.q_WO = Eigen::Quaterniond(T_WO.block<3, 3>(0, 0));
             // visualEKF.x_ = visualEKF.x_predicted_;
             visualEKF.update(measurement);
 
