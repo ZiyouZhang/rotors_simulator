@@ -95,8 +95,8 @@ private:
     double sigma_c_omega_O = 0.01; // rad/s, amgular velocity error
 
     //measurement noise params
-    double sigma_z_r_W = 0.2;  // m, pose measurement error
-    double sigma_z_q_WO = 0.01; // N/A, quaternion measurement error
+    double sigma_z_r_W = 0.1;  // m, pose measurement error
+    double sigma_z_q_WO = 0.02; // N/A, quaternion measurement error
 
     friend class PoseDetector;
 };

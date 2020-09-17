@@ -32,10 +32,21 @@ Eigen::Quaterniond operator*(const double a, const Eigen::Quaterniond b)
 Eigen::Quaterniond operator*(const Eigen::Quaterniond q1, const Eigen::Quaterniond q2)
 {
     Eigen::Quaterniond q;
-    q.x() = q1.w() * q2.x() + q1.x() * q2.w() + q1.y() * q2.z() - q1.z() * q2.y();
+    q.x() = q1.w() * q2.x() + q1.x() * q2.w() + q1.y() * q2.z() - q1.z() * q2.y();  
     q.y() = q1.w() * q2.y() - q1.x() * q2.z() + q1.y() * q2.w() + q1.z() * q2.x();
     q.z() = q1.w() * q2.z() + q1.x() * q2.y() - q1.y() * q2.x() + q1.z() * q2.w();
     q.w() = q1.w() * q2.w() - q1.x() * q2.x() - q1.y() * q2.y() - q1.z() * q2.z();
+    return q;
+}
+
+Eigen::Quaterniond operator/(const Eigen::Quaterniond q1, const Eigen::Quaterniond q2)
+{
+    Eigen::Quaterniond q;
+    double sum = q2.x() * q2.x() + q2.y() * q2.y() + q2.z() * q2.z() + q2.w() * q2.w();
+    q.w() = (q2.w() * q1.w() + q2.x() * q1.x() + q2.y() * q1.y() + q2.z() * q1.z())/sum;
+    q.x() = (q2.w() * q1.x() - q2.x() * q1.w() - q2.y() * q1.z() + q2.z() * q1.y())/sum;
+    q.y() = (q2.w() * q1.y() + q2.x() * q1.z() - q2.y() * q1.w() - q2.z() * q1.x())/sum;
+    q.z() = (q2.w() * q1.z() - q2.x() * q1.y() + q2.y() * q1.x() - q2.z() * q1.w())/sum;
     return q;
 }
 

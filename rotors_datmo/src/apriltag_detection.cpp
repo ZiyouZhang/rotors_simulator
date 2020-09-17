@@ -202,10 +202,10 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
         if (!visualEKF.isInitialsed())
         {
             ObjectState initialState;
-            // initialState.r_W = Eigen::Vector3d(5.0, -0.5, 0.3);
-            // Eigen::Quaterniond eigen_quaterion(1.0, 0.0, 0.0, 0.0);
-            initialState.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
-            initialState.q_WO = Eigen::Quaterniond(T_WO.block<3,3>(0,0));
+            initialState.r_W = Eigen::Vector3d(5.0, -0.5, 0.3);
+            initialState.q_WO = Eigen::Quaterniond(1.0, 0.0, 0.0, 0.0);
+            // initialState.r_W = Eigen::Vector3d(T_WO(0, 3), T_WO(1, 3), T_WO(2, 3));
+            // initialState.q_WO = Eigen::Quaterniond(T_WO.block<3,3>(0,0));
             initialState.v_O = Eigen::Vector3d(-4.0, 0.5, 4.0);
             initialState.omega_O = Eigen::Vector3d(1.0, 0.0, 0.0);
             initialState.timestamp = currentTime.toSec();
@@ -310,9 +310,9 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
             updated_state.twist.twist.angular.z = visualEKF.x_.omega_O.z();
             updatePub.publish(updated_state);
 
-            // std::cout << "Detection induced latency: "
-            //           << (ros::Time::now().toSec() - currentTime.toSec()) * 1000 << " ms"
-            //           << std::endl;
+            std::cout << "Detection induced latency: "
+                      << (ros::Time::now().toSec() - currentTime.toSec()) * 1000 << " ms"
+                      << std::endl;
 
             // debug update state
             // std::cout << std::endl
@@ -342,7 +342,7 @@ void PoseDetector::imageCallBack(const sensor_msgs::ImageConstPtr &msg, const se
 
     // lastDetectedState = detected_state;
 
-    if (currentTime.toSec() > 5)
+    if (currentTime.toSec() > 4.15)
         ros::shutdown();
 }
 
