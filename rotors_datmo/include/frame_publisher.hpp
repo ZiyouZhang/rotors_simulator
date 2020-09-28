@@ -1,3 +1,14 @@
+/**
+ * @file frame_publisher.hpp
+ * @author Ziyou Zhang (ziyou.zhang@outlook.com)
+ * @brief 
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
+
 #ifndef FRAME_PUBLISHER_H
 #define FRAME_PUBLISHER_H
 

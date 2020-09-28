@@ -70,12 +70,5 @@
       <static>true</static>
     </include>
 
-    <!-- Depth Camera -->
-    <!-- <include>
-      <uri>model://depth_camera</uri>
-      <pose>1.0 1.0 1.0 0.0 0.0 0.0</pose>
-      <static>true</static>
-    </include> -->
-
   </world>
 </sdf>

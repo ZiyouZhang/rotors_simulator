@@ -1,3 +1,16 @@
+"""
+/**
+ * @file matlab_to_cpp.py
+ * @author Ziyou Zhang (ziyou.zhang@outlook.com)
+ * @brief Code for easy conversion of matlab synbolic differentiation result to cpp code.
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
+"""
+
 new_code = ""
 
 with open("/home/ziyou/catkin_ws/src/rotors_simulator/rotors_datmo/src/visual_ekf.cpp", "r") as f:

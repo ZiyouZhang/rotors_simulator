@@ -1,3 +1,16 @@
+"""
+/**
+ * @file bag_analysis.py
+ * @author Ziyou Zhang (ziyou.zhang@outlook.com)
+ * @brief ROS bag analysis script.
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
+"""
+
 #!/usr/bin/env python
 
 import rosbag
@@ -116,33 +129,33 @@ class topic_data:
 if __name__ == "__main__":
 
     truth = topic_data('/tag_box_pose_ground_truth', filename)
-    detection = topic_data('/detected_object_state', filename)
+    detected = topic_data('/detected_object_state', filename)
     predicted = topic_data('/predicted_object_state', filename)
     ekf = topic_data('/updated_object_state', filename)
 
-    detection.calculate_velocities()
+    detected.calculate_velocities()
 
-    start_time = 3.05
-    simulation_time = 0.82
+    start_time = 3.12
+    simulation_time = 0.79
 
     truth.data['time'] = [x - start_time for x in truth.data['time']]
-    detection.data['time'] = [x - start_time for x in detection.data['time']]
+    detected.data['time'] = [x - start_time for x in detected.data['time']]
     predicted.data['time'] = [x - start_time for x in predicted.data['time']]
     ekf.data['time'] = [x - start_time for x in ekf.data['time']]
 
-    plot_trajectory = False
-    plot_error = False
-    plot_all = False
-    plot_group = True
-    plot_seperate = False
-    save_csv = False
-    plot_latency = False
+    plot_trajectory = 0
+    plot_error = 0
+    plot_all = 0
+    plot_group = 1
+    plot_seperate = 0
+    save_csv = 0
+    plot_latency = 0
 
     def compare_plot(attr, include_detected):
         plt.plot(truth.data['time'], truth.data[attr],  'r.-', label='truth')
         if include_detected:
-            plt.plot(detection.data['time'],
-                    detection.data[attr], 'g.', label='detected')
+            plt.plot(detected.data['time'],
+                    detected.data[attr], 'g.', label='detected')
         plt.plot(predicted.data['time'],
                 predicted.data[attr], 'y.', label='predicted')
         plt.plot(ekf.data['time'], ekf.data[attr], 'b.', label='ekf')
@@ -153,20 +166,28 @@ if __name__ == "__main__":
         plt.savefig(attr, dpi=400)
         plt.clf()
 
-    def generate_plot(ax, attr, include_detected, y1=None, y2=None, title=None):
+    def generate_plot(ax, attr, is_detection_estimation, y1=None, y2=None, title=None):
 
         ax.plot(truth.data['time'], truth.data[attr],  'r.-', label='ground truth', ms=3, lw=1)
-        if include_detected:
-            ax.plot(detection.data['time'],
-                    detection.data[attr], 'g.-', label='detected state')
-        # ax.plot(predicted.data['time'],
-        #         predicted.data[attr], 'y.-', label='predicted state')
+        if is_detection_estimation:
+            ax.plot(detected.data['time'], detected.data[attr], 'g.-', label='detected estimation')
+        else:
+            ax.plot(detected.data['time'], detected.data[attr], 'g.-', label='detected state')
+        ax.plot(predicted.data['time'],  predicted.data[attr], 'y.-', label='predicted state')
         ax.plot(ekf.data['time'], ekf.data[attr], 'b.-', label='EKF estimation')
         ax.set_title(title if title else attr)
         ax.legend()
         ax.set_xlim(0, simulation_time)
         ax.set_ylim(y1, y2)
-        # plt.savefig(attr, dpi=400)
+        ax.set_xlabel("time [s]")
+        if attr == "r_x" or attr == "r_y" or attr == "r_z":
+            ax.set_ylabel("position [m]")
+        if attr == "roll" or attr == "pitch" or attr == "yaw":
+            ax.set_ylabel("rotation [rad]")
+        if attr == "v_x" or attr == "v_y" or attr == "v_z":
+            ax.set_ylabel("linear velocity [m/s]")
+        if attr == "omega_x" or attr == "omega_y" or attr == "omega_z":
+            ax.set_ylabel("angular velocity [rad/s]")
 
     def error_plot(ax, attr):
         f = interp1d(truth.data['time'], truth.data[attr])
@@ -176,10 +197,10 @@ if __name__ == "__main__":
         err_ekf = []
         for i in range(len(ekf.data['time'])):
             err_det.append(diff_percent(
-                detection.data[attr][i], f(detection.data['time'][i])))
+                detected.data[attr][i], f(detected.data['time'][i])))
             err_ekf.append(diff_percent(ekf.data[attr][i], f(ekf.data['time'][i])))
 
-        ax.plot(detection.data['time'], err_det, 'g.-', label='detected')
+        ax.plot(detected.data['time'], err_det, 'g.-', label='detected')
         ax.plot(ekf.data['time'], err_ekf, 'b.-', label='ekf')
 
         ax.set_title(attr)
@@ -191,9 +212,9 @@ if __name__ == "__main__":
         ax = fig.gca(projection='3d')
         ax.plot(truth.data["r_x"][300:390], truth.data["r_y"][300:390], truth.data["r_z"]
                 [300:390], 'r.-', ms=6, lw=2, label='gournd truth trajectory')
-        ax.plot(detection.data["r_x"][:-5], detection.data["r_y"][:-5], detection.data["r_z"][:-5],'g.-', ms=12, lw= 2,label='detected trajectory')
-        ax.plot(ekf.data["r_x"][:-5], ekf.data["r_y"][:-5], ekf.data["r_z"]
-                [:-5], 'b.-', ms=12, lw=2, label='ekf trajectory')
+        # ax.plot(predicted.data["r_x"][:-5], predicted.data["r_y"][:-5], predicted.data["r_z"][:-5],'y.-', ms=12, lw= 2,label='predicted trajectory')
+        ax.plot(detected.data["r_x"][1:-5], detected.data["r_y"][1:-5], detected.data["r_z"][1:-5],'g.-', ms=12, lw= 2,label='detected trajectory')
+        ax.plot(ekf.data["r_x"][:-5], ekf.data["r_y"][:-5], ekf.data["r_z"][:-5], 'b.-', ms=12, lw=2, label='ekf trajectory')
         ax.legend()
         ax.set_xlabel('X [m]')
         ax.set_ylabel('Y [m]')
@@ -224,12 +245,12 @@ if __name__ == "__main__":
     if plot_all:
         plt.clf()
         fig, axs = plt.subplots(4, 3)
-        generate_plot(axs[0][0], 'r_x', True)
-        generate_plot(axs[0][1], 'r_y', True)
-        generate_plot(axs[0][2], 'r_z', True)
-        generate_plot(axs[1][0], 'roll', True)
-        generate_plot(axs[1][1], 'pitch', True)
-        generate_plot(axs[1][2], 'yaw', True)
+        generate_plot(axs[0][0], 'r_x', False)
+        generate_plot(axs[0][1], 'r_y', False)
+        generate_plot(axs[0][2], 'r_z', False)
+        generate_plot(axs[1][0], 'roll', False)
+        generate_plot(axs[1][1], 'pitch', False)
+        generate_plot(axs[1][2], 'yaw', False)
         generate_plot(axs[2][0], 'v_x', True)
         generate_plot(axs[2][1], 'v_y', True)
         generate_plot(axs[2][2], 'v_z', True)
@@ -239,35 +260,35 @@ if __name__ == "__main__":
         plt.show()
 
     if plot_group:
-        # fig, axs = plt.subplots(1, 3, dpi=200, figsize=(12,3.5))
-        # generate_plot(axs[0], 'r_x', True, title=r'$r_x$', y1=1, y2=6)
-        # generate_plot(axs[1], 'r_y', True, title=r'$r_y$')
-        # generate_plot(axs[2], 'r_z', True, title=r'$r_z$')
-        # plt.savefig('/home/ziyou/Desktop/report/figures/s1_r_plot.png', dpi=400)
+        # fig, axs = plt.subplots(1, 3, dpi=200, figsize=(14,4))
+        # generate_plot(axs[0], 'r_x', False, title=r'$r_x$', y1=1.5, y2=5.5)
+        # generate_plot(axs[1], 'r_y', False, title=r'$r_y$', y1=-2, y2=2)
+        # generate_plot(axs[2], 'r_z', False, title=r'$r_z$', y1=-1, y2=3)
+        # plt.savefig('/home/ziyou/Desktop/report/figures/s2_r_plot.png', dpi=400)
         # plt.show()
         # plt.clf()
 
-        # fig, axs = plt.subplots(1, 3, dpi=200, figsize=(12,3.5))
-        # generate_plot(axs[0], 'roll', True, title=r'$roll$')
-        # generate_plot(axs[1], 'pitch', True, title=r'$pitch$', y1=-1.57, y2=1.57)
-        # generate_plot(axs[2], 'yaw', True, title=r'$yaw$', y1=-1.57, y2=1.57)
-        # plt.savefig('/home/ziyou/Desktop/report/figures/s1_q_plot.png', dpi=400)
+        # fig, axs = plt.subplots(1, 3, dpi=200, figsize=(14,4))
+        # generate_plot(axs[0], 'roll', False, title=r'$roll$', y1=-0.5, y2=1)
+        # generate_plot(axs[1], 'pitch', False, title=r'$pitch$', y1=-0.4, y2=1.1)
+        # generate_plot(axs[2], 'yaw', False, title=r'$yaw$', y1=-0.75, y2=0.75)
+        # plt.savefig('/home/ziyou/Desktop/report/figures/s2_q_plot.png', dpi=400)
         # plt.show()
         # plt.clf()
 
-        # fig, axs = plt.subplots(1, 3, dpi=200, figsize=(12,3.5))
-        # generate_plot(axs[0], 'v_x', True, title=r'$v_x$', y1=-8)
-        # generate_plot(axs[1], 'v_y', True, title=r'$v_y$', y1=-3)
-        # generate_plot(axs[2], 'v_z', True, title=r'$v_z$')
-        # plt.savefig('/home/ziyou/Desktop/report/figures/s1_v_plot.png', dpi=400)
+        # fig, axs = plt.subplots(1, 3, dpi=200, figsize=(14,4))
+        # generate_plot(axs[0], 'v_x', True, title=r'$v_x$', y1=-6, y2=4)
+        # generate_plot(axs[1], 'v_y', True, title=r'$v_y$', y1=-4.5, y2=5.5)
+        # generate_plot(axs[2], 'v_z', True, title=r'$v_z$', y1=-5, y2=5)
+        # plt.savefig('/home/ziyou/Desktop/report/figures/s2_v_plot.png', dpi=400)
         # plt.show()
         # plt.clf()
 
-        fig, axs = plt.subplots(1, 3, dpi=200, figsize=(12,3.5))
-        generate_plot(axs[0], 'omega_x', True, title=r'$\omega_x$')
-        generate_plot(axs[1], 'omega_y', True, title=r'$\omega_y$')
-        generate_plot(axs[2], 'omega_z', True, title=r'$\omega_z$')
-        plt.savefig('/home/ziyou/Desktop/report/figures/s1_omega_plot.png', dpi=400)
+        fig, axs = plt.subplots(1, 3, dpi=200, figsize=(14,4))
+        generate_plot(axs[0], 'omega_x', True, title=r'$\omega_x$', y1=-15, y2=15)
+        generate_plot(axs[1], 'omega_y', True, title=r'$\omega_y$', y1=-15, y2=15)
+        generate_plot(axs[2], 'omega_z', True, title=r'$\omega_z$', y1=-15, y2=15)
+        plt.savefig('/home/ziyou/Desktop/report/figures/s2_omega_plot.png', dpi=400)
         plt.show()
         plt.clf()
 
@@ -300,11 +321,11 @@ if __name__ == "__main__":
         #         predicted.roll,
         #         predicted.v_z,
         #         predicted.omega_x,
-        #         detection.time,
-        #         detection.r_z,
-        #         detection.roll,
-        #         detection.v_z,
-        #         detection.omega_x,
+        #         detected.time,
+        #         detected.r_z,
+        #         detected.roll,
+        #         detected.v_z,
+        #         detected.omega_x,
         #         ekf.time,
         #         ekf.r_z,
         #         ekf.roll,
@@ -323,7 +344,7 @@ if __name__ == "__main__":
         plt.clf()
         plt.bar(seq, latency)
         plt.xlabel("Image processing sequence")
-        plt.ylabel("Detection latency [ms]")
+        plt.ylabel("detected latency [ms]")
         plt.xticks(np.arange(1, len(latency)+1, step=1))
         plt.show()
         print(sum(latency) / len(latency))

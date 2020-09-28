@@ -1,3 +1,16 @@
+"""
+/**
+ * @file jacobian.m
+ * @author Ziyou Zhang (ziyou.zhang@outlook.com)
+ * @brief The matlab code for symbolic jacobian differentiation.
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
+"""
+
 r = sym('r',[3 1], 'real');
 q = sym('q', [4 1], 'real');
 v = sym('v', [3 1], 'real');
@@ -8,13 +21,13 @@ C_WO = sym('C_WO', [3 3], 'real');
 % I = sym('I', [3 3], 'real');
 g = [0; 0; -9.81];
 
-xxxxxxxxxxxxxx = sym('xxxxxxxxxxxxxxx', 'real');
+aux = sym('aux', 'real');
 % I = [0.5/12, 0, 0;
 %     0, 0.5/12, 0;
 %     0, 0, 0.5/12];
-I = [xxxxxxxxxxxxxx, 0, 0;
-    0, xxxxxxxxxxxxxx, 0;
-    0, 0, xxxxxxxxxxxxxx];
+I = [aux, 0, 0;
+    0, aux, 0;
+    0, 0, aux];
 
 t = sym('t', 'real');
 

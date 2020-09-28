@@ -1,21 +1,12 @@
-/*
- * Copyright 2015 Fadri Furrer, ASL, ETH Zurich, Switzerland
- * Copyright 2015 Michael Burri, ASL, ETH Zurich, Switzerland
- * Copyright 2015 Mina Kamel, ASL, ETH Zurich, Switzerland
- * Copyright 2015 Janosch Nikolic, ASL, ETH Zurich, Switzerland
- * Copyright 2015 Markus Achtelik, ASL, ETH Zurich, Switzerland
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
-
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+/**
+ * @file moving_mav.cpp
+ * @author Ziyou Zhang (ziyou.zhang@outlook.com)
+ * @brief The node for controlling the mav movement.
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
  */
 
 #include <thread>
@@ -32,7 +23,6 @@ int main(int argc, char **argv)
 {
   ros::init(argc, argv, "moving_mav");
   ros::NodeHandle nh;
-  // Create a private node handle for accessing node parameters.
   ros::NodeHandle nh_private("~");
   ros::Publisher trajectory_pub = nh.advertise<trajectory_msgs::MultiDOFJointTrajectory>(mav_msgs::default_topics::COMMAND_TRAJECTORY, 10);
   ROS_INFO("Started moving mav with camera test.");

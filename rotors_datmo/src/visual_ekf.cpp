@@ -1,9 +1,18 @@
-#include "visual_ekf.hpp"
-#include "Transformation.hpp"
-#include "operators.hpp"
-#include <iostream>
+/**
+ * @file visual_ekf.cpp
+ * @author Ziyou Zhang (ziyou.zhang@outlook.com)
+ * @brief Visual-based ekf estimator implementation.
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
 
+#include <iostream>
 #include <ros/console.h>
+
+#include "visual_ekf.hpp"
 
 Eigen::Quaterniond operator+(const Eigen::Quaterniond q1, const Eigen::Quaterniond q2)
 {
@@ -56,9 +65,7 @@ VisualEKF::VisualEKF()
     x_.q_WO.setIdentity();
     x_.v_O.setZero();
     x_.omega_O.setZero();
-    P_.setZero();
-
-    last_update_time_ = ros::Time::now();
+    P_.setIdentity();
 }
 
 bool VisualEKF::initialise(const ObjectState initialState)
@@ -69,6 +76,8 @@ bool VisualEKF::initialise(const ObjectState initialState)
     P_.block<4, 4>(3, 3) *= sigma_c_q_WO * sigma_c_q_WO;         // quoternion error
     P_.block<3, 3>(7, 7) *= sigma_c_v_O * sigma_c_v_O;           // 1 cm/s
     P_.block<3, 3>(10, 10) *= sigma_c_omega_O * sigma_c_omega_O; // 1 degree/sec
+
+    std::cout << "P_ init:" << std::endl << P_.diagonal() << std::endl << std::endl;
 
     initialised = true;
 
@@ -99,10 +108,7 @@ ObjectStateDerivative VisualEKF::calcStateDerivative(const ObjectState &state)
 
     stateDerivative.omega_O_dot = state.inertia_inverse * (state.omega_O.cross(state.inertia * state.omega_O));
 
-    // might be some implicit bug. Here it checks if there's nan in the vector
-    // if (!((stateDerivative.omega_O_dot.array() == stateDerivative.omega_O_dot.array()).all()))
-    //     stateDerivative.omega_O_dot.setZero();
-
+    // debug the state derivatives
     // std::cout << std::endl
     //           << "r_W_dot: " << std::endl
     //           << stateDerivative.r_W_dot << std::endl
@@ -123,10 +129,11 @@ bool VisualEKF::calcJacobian(const ObjectState &state,
                              const double &dt,
                              Eigen::Matrix<double, 13, 13> &jacobian)
 {
-    jacobian.setZero();
+    jacobian.setIdentity();
 
     Eigen::Matrix3d C_WO = state.q_WO.toRotationMatrix();
 
+    // Hard-coded jacobian matrix obtained via symbolic deriviation in Matlab.
     jacobian.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
     jacobian.block<3, 3>(0, 7) << C_WO(0, 0) - (C_WO(0, 1) * dt * state.omega_O.z()) / 2 + (C_WO(0, 2) * dt * state.omega_O.y()) / 2, C_WO(0, 1) + (C_WO(0, 0) * dt * state.omega_O.z()) / 2 - (C_WO(0, 2) * dt * state.omega_O.x()) / 2, C_WO(0, 2) - (C_WO(0, 0) * dt * state.omega_O.y()) / 2 + (C_WO(0, 1) * dt * state.omega_O.x()) / 2,
         C_WO(1, 0) - (C_WO(1, 1) * dt * state.omega_O.z()) / 2 + (C_WO(1, 2) * dt * state.omega_O.y()) / 2, C_WO(1, 1) + (C_WO(1, 0) * dt * state.omega_O.z()) / 2 - (C_WO(1, 2) * dt * state.omega_O.x()) / 2, C_WO(1, 2) - (C_WO(1, 0) * dt * state.omega_O.y()) / 2 + (C_WO(1, 1) * dt * state.omega_O.x()) / 2,
@@ -207,15 +214,15 @@ bool VisualEKF::predict(const double dt,
 
     stateTransition(fromState, toState, dt, F);
 
-    LQL.setZero();
-    LQL.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * delta_t_ * sigma_c_r_W * sigma_c_r_W;
-    LQL.block<4, 4>(3, 3) = Eigen::Matrix4d::Identity() * delta_t_ * sigma_c_q_WO * sigma_c_q_WO;
-    LQL.block<3, 3>(7, 7) = Eigen::Matrix3d::Identity() * delta_t_ * sigma_c_v_O * sigma_c_v_O;
-    LQL.block<3, 3>(10, 10) = Eigen::Matrix3d::Identity() * delta_t_ * sigma_c_omega_O * sigma_c_omega_O;
+    LQL.setIdentity();
+    LQL.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * dt * sigma_c_r_W * sigma_c_r_W;
+    LQL.block<4, 4>(3, 3) = Eigen::Matrix4d::Identity() * dt * sigma_c_q_WO * sigma_c_q_WO;
+    LQL.block<3, 3>(7, 7) = Eigen::Matrix3d::Identity() * dt * sigma_c_v_O * sigma_c_v_O;
+    LQL.block<3, 3>(10, 10) = Eigen::Matrix3d::Identity() * dt * sigma_c_omega_O * sigma_c_omega_O;
 
     P_ = F * P_ * F.transpose() + LQL;
 
-    // std::cout << "P: " << P_ << std::endl;
+    std::cout << "P predict:" << std::endl << P_.diagonal() << std::endl << std::endl;
 
     return true;
 }
@@ -227,15 +234,11 @@ bool VisualEKF::update(const ApriltagMeasurement apriltagMeasurement)
     y.segment<3>(0) = apriltagMeasurement.r_W - x_predicted_.r_W;
     y.segment<4>(3) = (apriltagMeasurement.q_WO - x_predicted_.q_WO).coeffs(); // xyzw
 
-    // std::cout << "y:" << std::endl << y << std::endl;
-
     // calculate measurement jacobian
     Eigen::Matrix<double, 7, 13> H;
     H.setZero();
     H.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
     H.block<4, 4>(3, 3) = Eigen::Matrix4d::Identity();
-
-    // std::cout << "H:" << std::endl << H << std::endl;
 
     // calculate covariance matrix
     Eigen::Matrix<double, 7, 7> R;
@@ -243,25 +246,17 @@ bool VisualEKF::update(const ApriltagMeasurement apriltagMeasurement)
     R.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity() * sigma_z_r_W * sigma_z_r_W;
     R.block<4, 4>(3, 3) = Eigen::Matrix4d::Identity() * sigma_z_q_WO * sigma_z_q_WO;
 
-    // std::cout << "R:" << std::endl << R << std::endl;
-
     // calculate residual covariance
     Eigen::Matrix<double, 7, 7> S;
     S = H * P_ * H.transpose() + R;
-
-    // std::cout << "S:" << std::endl << S << std::endl;
 
     // calculate kalman gain
     Eigen::Matrix<double, 13, 7> K;
     K = P_ * H.transpose() * S.inverse();
 
-    // std::cout << "K:" << std::endl << K << std::endl;
-
     // calculate state update
     Eigen::Matrix<double, 13, 1> delta;
     delta = K * y;
-
-    // std::cout << "delta:" << std::endl << delta << std::endl;
 
     // update state
     x_.r_W = x_predicted_.r_W + delta.segment<3>(0);
@@ -272,8 +267,6 @@ bool VisualEKF::update(const ApriltagMeasurement apriltagMeasurement)
 
     // update covariance
     P_ = (Eigen::Matrix<double, 13, 13>::Identity() - K * H) * P_;
-
-    // std::cout << "P:" << std::endl << P_ << std::endl;
 
     return true;
 }

@@ -1,3 +1,14 @@
+/**
+ * @file tag_box_plugin.hpp
+ * @author Ziyou Zhang(ziyou.zhang@outlook.com)
+ * @brief The tag box movement the pose publishing.
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
+
 #ifndef TAG_BOX_PLUGIN_H
 #define TAG_BOX_PLUGIN_H
 
@@ -38,6 +49,7 @@ namespace gazebo
         ros::Publisher posePub;
         tf::TransformBroadcaster br;
 
+        // helper bool values for setting initial pose and velocity
         bool pose_initialised = false;
         bool vel_initialised = false;
     };

@@ -34,12 +34,6 @@ INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 # Gazebo plugins
 SET(DEPS ${catkin_LIBRARIES})
 
-ADD_LIBRARY(depth_plugin SHARED src/depth_plugin.cpp)
-TARGET_LINK_LIBRARIES(depth_plugin ${DEPS})
-
-ADD_LIBRARY(pose_plugin SHARED src/pose_plugin.cpp)
-TARGET_LINK_LIBRARIES(pose_plugin ${DEPS})
-
 ADD_LIBRARY(tag_box_plugin SHARED src/tag_box_plugin.cpp)
 TARGET_LINK_LIBRARIES(tag_box_plugin ${DEPS})
 

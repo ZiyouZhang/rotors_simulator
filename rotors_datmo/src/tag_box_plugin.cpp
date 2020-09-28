@@ -1,7 +1,18 @@
-#include "tag_box_plugin.hpp"
+/**
+ * @file tag_box_plugin.cpp
+ * @author Ziyou Zhang (ziyou.zhang@outlook.com)
+ * @brief Tagged box plugin source file.
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
 
 #include <ros/console.h>
 #include <geometry_msgs/Pose.h>
+
+#include "tag_box_plugin.hpp"
 
 namespace gazebo
 {

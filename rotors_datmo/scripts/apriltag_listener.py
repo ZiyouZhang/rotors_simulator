@@ -1,3 +1,16 @@
+"""
+/**
+ * @file apriltag_listener.py
+ * @author Ziyou Zhang (ziyou.zhang@outlook.com)
+ * @brief Python implementation for apriltag detection.
+ * @version 0.1
+ * @date 2020-09-18
+ * 
+ * @copyright Copyright (c) 2020
+ * 
+ */
+"""
+
 #!/usr/bin/env python
 import numpy as np
 import apriltag
@@ -42,17 +55,8 @@ def detect():
 
 
 def detector():
-
-    # In ROS, nodes are uniquely named. If two nodes with the same
-    # name are launched, the previous one is kicked off. The
-    # anonymous=True flag means that rospy will choose a unique
-    # name for our 'listener' node so that multiple listeners can
-    # run simultaneously.
     rospy.init_node('tag_detector', anonymous=True)
-
     rospy.Subscriber("/depth_camera/image_raw", Image, callback)
-
-    # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()
 
 
